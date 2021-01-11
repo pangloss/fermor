@@ -1,5 +1,6 @@
 (ns fermor.bifurcan
-  (:require [fermor.traverse :refer [join m]]
+  (:refer-clojure :exclude [filter])
+  (:require [fermor.traverse :refer [join m filter]]
             [clojure.pprint :refer [simple-dispatch]])
   (:import (io.lacuna.bifurcan DirectedGraph DirectedAcyclicGraph IGraph Graphs ISet)
            (clojure.lang IMeta)))
@@ -55,7 +56,6 @@
      (.linear (undirected-graph))
      (undirected-graph))))
 
-
 (defn -e [^IGraph g]
   (iterator-seq (.iterator (.edges g))))
 
@@ -84,6 +84,11 @@
         (when-let [s (seq x)]
           (with-meta s meta))
         (*not-imeta* meta x)))))
+
+(defn vertices-with-edge [graph label]
+  (->> (get-in graph [:graph/edges label])
+       -v
+       (use-graph graph)))
 
 (defn -out*
   ([^IGraph g ^ISet vs vr]
@@ -193,10 +198,14 @@
 
 (defn has-property
   "Filters the route for elements that have the specified property."
-  [property r]
-  (if-let [props (:graph/properties (:graph (meta r)))]
-    (filter #(find (props %) property) r)
-    (*no-graph-in-metadata* r)))
+  ([property r]
+   (if-let [props (:graph/properties (:graph (meta r)))]
+     (filter #(find (props %) property) r)
+     (*no-graph-in-metadata* r)))
+  ([property values-set r]
+   (if-let [props (:graph/properties (:graph (meta r)))]
+     (filter #(values-set (get (props %) property)) r)
+     (*no-graph-in-metadata* r))))
 
 (defn property
   "Produces a lazy sequence of the value of the given property."

@@ -139,13 +139,13 @@
   ([{:keys [min max]} f r]
    (cond
      (and min max)
-     (filter #(<= min (count (take (inc max) (f %))) max)
+     (filter #(<= min (count (clojure.core/take (inc max) (f %))) max)
              (ensure-seq r))
      min
-     (filter #(= min (count (take min (f %))))
+     (filter #(= min (count (clojure.core/take min (f %))))
              (ensure-seq r))
      max
-     (filter #(<= (count (take (inc max) (f %))) max)
+     (filter #(<= (count (clojure.core/take (inc max) (f %))) max)
              (ensure-seq r))
      :else
      r)))
@@ -163,13 +163,13 @@
   ([{:keys [min max]} f e]
    (cond
      (and min max)
-     (when (<= min (count (take (inc max) (f e))) max)
+     (when (<= min (count (clojure.core/take (inc max) (f e))) max)
        e)
      min
-     (when (= min (count (take min (f e))))
+     (when (= min (count (clojure.core/take min (f e))))
        e)
      max
-     (when (<= (count (take (inc max) (f e))) max)
+     (when (<= (count (clojure.core/take (inc max) (f e))) max)
        e)
      :else
      e)))
@@ -186,13 +186,13 @@
   ([{:keys [min max]} f r]
    (cond
      (and min max)
-     (filter #(not (<= min (count (take (inc max) (f %))) max))
+     (filter #(not (<= min (count (clojure.core/take (inc max) (f %))) max))
              (ensure-seq r))
      min
-     (filter #(not (= min (count (take min (f %)))))
+     (filter #(not (= min (count (clojure.core/take min (f %)))))
              (ensure-seq r))
      max
-     (filter #(not (<= (count (take (inc max) (f %))) max))
+     (filter #(not (<= (count (clojure.core/take (inc max) (f %))) max))
              (ensure-seq r))
      :else
      r)))
@@ -553,35 +553,6 @@
             (fn [p e] (if (seq (f e)) continue emit))
             #(f %2)
             (ensure-seq r)))
-
-#_
-(defn has-property
-  "Filters the route for elements that have the specified property."
-  [property r]
-  (m r (cond (element? r) (when (has-property? r property) [r])
-             (nil? r) nil
-             :else (filter #(has-property? % property) (ensure-seq r)))))
-
-#_
-(defn property
-  "Produces a lazy sequence of the value of the given property."
-  [prop r]
-  (let [n (name prop)]
-    (keep #(get-property % n) (ensure-seq r))))
-
-#_
-(defn with-values
-  "Arity 3 filters the route for all vertices that have the given key value pair.
-
-   Arity 2 filters the route for all vertices that have each of the key value pairs in the map props."
-  ([k v r]
-   (filter (fn [e]
-             (= v (get-property e k)))
-           (ensure-seq r)))
-  ([props r]
-   (filter (fn [e] (every? (fn [[k v]] (= v (get-property e k)))
-                           props))
-           (ensure-seq r))))
 
 (defn with
   "Filters the route for elements where the result of calling the function f
