@@ -38,6 +38,9 @@
 (defn drop [n r]
   (m r (clojure.core/drop n r)))
 
+(defn sort-by [f r]
+  (m r (clojure.core/sort-by f r)))
+
 ;;
 
 (defn ensure-seq
@@ -57,8 +60,9 @@
   [f coll]
   (->> coll
        (map (juxt f identity))
-       (clojure.core/sort-by first)
-       (map second)))
+       (clojure.core/sort-by #(nth % 0))
+       (map #(nth % 1))
+       (m coll)))
 
 (defn group-siblings
   "For efficiently traversing through relationships like

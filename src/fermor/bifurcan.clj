@@ -73,61 +73,69 @@
 (defn ^:dynamic *no-graph-in-metadata* [r]
   (throw (Exception. "No graph present in metadata")))
 
+(defn ^:dynamic *not-imeta* [meta x]
+  (throw (Exception. "Can't attach metadata")))
+
 (defn use-graph [graph x]
-  (when (instance? IMeta x)
-    (with-meta x {:graph graph})))
+  (let [meta {:graph graph}]
+    (if (instance? IMeta x)
+      (with-meta x meta)
+      (if (and x (seqable? x))
+        (when-let [s (seq x)]
+          (with-meta s meta))
+        (*not-imeta* meta x)))))
 
 (defn -out*
   ([^IGraph g ^ISet vs vr]
-   (if (.isPresent (.indexOf vs vr))
-     (with-meta
-       (map #(.out g %) vr)
-       (meta vr))
-     (with-meta [] (meta vr))))
+   (with-meta
+     (map #(when (.isPresent (.indexOf vs %))
+             (.out g %))
+          vr)
+     (meta vr)))
   ([^IGraph g ^ISet vs f vr]
-   (if (.isPresent (.indexOf vs vr))
-     (with-meta
-       (map #(f (.out g %)) vr)
-       (meta vr))
-     (with-meta [] (meta vr)))))
+   (with-meta
+     (map #(f (when (.isPresent (.indexOf vs %))
+                 (.out g %)))
+          vr)
+     (meta vr))))
 
 (defn -in*
   ([^IGraph g ^ISet vs vr]
-   (if (.isPresent (.indexOf vs vr))
-     (with-meta
-       (map #(.in g %) vr)
-       (meta vr))
-     (with-meta [] (meta vr))))
+   (with-meta
+     (map #(when (.isPresent (.indexOf vs %))
+             (.in g %))
+          vr)
+     (meta vr)))
   ([^IGraph g ^ISet vs f vr]
-   (if (.isPresent (.indexOf vs vr))
-     (with-meta
-       (map #(f (.in g %)) vr)
-       (meta vr))
-     (with-meta [] (meta vr)))))
+   (with-meta
+     (map #(f (when (.isPresent (.indexOf vs %))
+                (.in g %)))
+          vr)
+     (meta vr))))
 
 (defn graph-out*
   ([{:keys [:graph/edges] :as graph} label vr]
    (when vr
      (when-let [^IGraph g (label edges)]
        (let [vs (.vertices g)]
-         (-out* g vs (use-graph graph vr))))))
+         (-out* g vs #(use-graph graph %) (use-graph graph vr))))))
   ([{:keys [:graph/edges] :as graph} label f vr]
    (when vr
      (when-let [^IGraph g (label edges)]
        (let [vs (.vertices g)]
-         (-out* g vs f (use-graph graph vr)))))))
+         (-out* g vs (comp f #(use-graph graph %)) (use-graph graph vr)))))))
 
 (defn graph-in*
   ([{:keys [:graph/edges] :as graph} label vr]
    (when vr
      (when-let [^IGraph g (label edges)]
        (let [vs (.vertices g)]
-         (-in* g vs (use-graph graph vr))))))
+         (-in* g vs #(use-graph graph %) (use-graph graph vr))))))
   ([{:keys [:graph/edges] :as graph} label f vr]
    (when vr
      (when-let [^IGraph g (label edges)]
        (let [vs (.vertices g)]
-         (-in* g vs f (use-graph graph vr)))))))
+         (-in* g vs (comp f #(use-graph graph %)) (use-graph graph vr)))))))
 
 (defn graph-out
   ([{:keys [:graph/edges] :as graph} label vr]
@@ -182,3 +190,24 @@
   "Like out, but use sort-by-f to sort the elements attached to each vertex before including them in the overall collection."
   [labels sort-by-f r]
   (out labels #(sort-by sort-by-f %) r))
+
+(defn has-property
+  "Filters the route for elements that have the specified property."
+  [property r]
+  (if-let [props (:graph/properties (:graph (meta r)))]
+    (filter #(find (props %) property) r)
+    (*no-graph-in-metadata* r)))
+
+(defn property
+  "Produces a lazy sequence of the value of the given property."
+  [property r]
+  (if-let [props (:graph/properties (:graph (meta r)))]
+    (keep #(get (props %) property) r)
+    (*no-graph-in-metadata* r)))
+
+(defn properties
+  "Produces a lazy sequence of the value of the given property."
+  [r]
+  (if-let [props (:graph/properties (:graph (meta r)))]
+    (keep #(props %) r)
+    (*no-graph-in-metadata* r)))
