@@ -1,10 +1,44 @@
 (ns fermor.traverse
+  (:refer-clojure :exclude [distinct map mapv keep filter remove take take-while drop])
   (:import clojure.lang.IMeta))
 
-(defn- m [r r']
+(defn m
+  "Preserve metadata"
+  [r r']
   (if (instance? IMeta r)
     (with-meta r' (meta r))
     r'))
+
+;; The standard arity versions of clojure.core's standard seq manipulation functions but metadata-preserving:
+
+(defn distinct [r]
+  (m r (clojure.core/distinct r)))
+
+(defn map [f r]
+  (m r (clojure.core/map f r)))
+
+(defn mapv [f r]
+  (m r (clojure.core/mapv f r)))
+
+(defn keep [f r]
+  (m r (clojure.core/keep f r)))
+
+(defn filter [f r]
+  (m r (clojure.core/filter f r)))
+
+(defn remove [f r]
+  (m r (clojure.core/remove f r)))
+
+(defn take [n r]
+  (m r (clojure.core/take n r)))
+
+(defn take-while [pred r]
+  (m r (clojure.core/take-while pred r)))
+
+(defn drop [n r]
+  (m r (clojure.core/drop n r)))
+
+;;
 
 (defn ensure-seq
   "Returns either nil or something sequential."
@@ -63,21 +97,21 @@
 (defn make-pairs
   "Map each element in r to a pair of [element (f element)]."
   [f r]
-  (m r (map (fn [v] (first {v (f v)})) r)))
+  (map (fn [v] (first {v (f v)})) r))
 
 (defn section
   "Both f and section are functions."
   [f section r]
-  (m r (mapcat (comp f section) r)))
+  (mapcat (comp f section) r))
 
 (defn sorted-section
   "This is mostly just an example of how to use sections to do sorting."
   [sort-by-f section r]
-  (m r (mapcat (comp #(fast-sort-by sort-by-f %) section) r)))
+  (mapcat (comp #(fast-sort-by sort-by-f %) section) r))
 
 (defn gather
   "Collect all results into a vector containing one collection."
-  ([r] (m r (gather [] r)))
+  ([r] (gather [] r))
   ([coll r] (m r [(into coll r)])))
 
 (defn spread
@@ -97,18 +131,18 @@
    most max items in the route. If min or max is nil that limit will not be
    enforced."
   ([f r]
-   (m r (filter (comp seq f) (ensure-seq r))))
+   (filter (comp seq f) (ensure-seq r)))
   ([{:keys [min max]} f r]
    (cond
      (and min max)
-     (m r (filter #(<= min (count (take (inc max) (f %))) max)
-                  (ensure-seq r)))
+     (filter #(<= min (count (take (inc max) (f %))) max)
+             (ensure-seq r))
      min
-     (m r (filter #(= min (count (take min (f %))))
-                  (ensure-seq r)))
+     (filter #(= min (count (take min (f %))))
+             (ensure-seq r))
      max
-     (m r (filter #(<= (count (take (inc max) (f %))) max)
-                  (ensure-seq r)))
+     (filter #(<= (count (take (inc max) (f %))) max)
+             (ensure-seq r))
      :else
      r)))
 
@@ -148,14 +182,14 @@
   ([{:keys [min max]} f r]
    (cond
      (and min max)
-     (m r (filter #(not (<= min (count (take (inc max) (f %))) max))
-                  (ensure-seq r)))
+     (filter #(not (<= min (count (take (inc max) (f %))) max))
+             (ensure-seq r))
      min
-     (m r (filter #(not (= min (count (take min (f %)))))
-                  (ensure-seq r)))
+     (filter #(not (= min (count (take min (f %)))))
+             (ensure-seq r))
      max
-     (m r (filter #(not (<= (count (take (inc max) (f %))) max))
-                  (ensure-seq r)))
+     (filter #(not (<= (count (take (inc max) (f %))) max))
+             (ensure-seq r))
      :else
      r)))
 
@@ -168,7 +202,7 @@
 
     fs: a collection of functions (fn [r]), each returning a collection or nil. Each will be called with the same starting route."
   [fs r]
-  (m r (mapv (fn [f] (f r)) fs)))
+  (mapv (fn [f] (f r)) fs))
 
 (defn merge-exhaustive
   "Merge a set of sequnces (or branches), including the full contents of each branch in order from first to last."
@@ -529,7 +563,7 @@
   "Produces a lazy sequence of the value of the given property."
   [prop r]
   (let [n (name prop)]
-    (m r (keep #(get-property % n) (ensure-seq r)))))
+    (keep #(get-property % n) (ensure-seq r))))
 
 #_
 (defn with-values
@@ -537,34 +571,34 @@
 
    Arity 2 filters the route for all vertices that have each of the key value pairs in the map props."
   ([k v r]
-   (m r (filter (fn [e]
-                  (= v (get-property e k)))
-                (ensure-seq r))))
+   (filter (fn [e]
+             (= v (get-property e k)))
+           (ensure-seq r)))
   ([props r]
-   (m r (filter (fn [e] (every? (fn [[k v]] (= v (get-property e k)))
-                                props))
-                (ensure-seq r)))))
+   (filter (fn [e] (every? (fn [[k v]] (= v (get-property e k)))
+                           props))
+           (ensure-seq r))))
 
 (defn with
   "Filters the route for elements where the result of calling the function f
    (fn [v]) are equal to v. If v is a set, then check that the result of
    calling f is in the set."
   [f v r]
-  (m r (if (set? v)
-         (filter (fn [e] (v (f e)))
-                 (ensure-seq r))
-         (filter (fn [e] (= v (f e)))
-                 (ensure-seq r)))))
+  (if (set? v)
+    (filter (fn [e] (v (f e)))
+            (ensure-seq r))
+    (filter (fn [e] (= v (f e)))
+            (ensure-seq r))))
 
 (defn is
   "Filter for items in the route equal to v."
   [v r]
-  (m r (filter #{v} (ensure-seq r))))
+  (filter #{v} (ensure-seq r)))
 
 (defn one-of
   "Filter for items in the route equal to one of the items in vs."
   [vs r]
-  (m r (filter (if (set? vs) vs (set vs)) r)))
+  (filter (if (set? vs) vs (set vs)) r))
 
 (defn distinct-in
   "Use if distinct is needed within a loop or a lookahead, or if distinctness needs to
@@ -595,13 +629,13 @@
   [r]
   (let [seen (atom #{})
         on-cycle *on-cycle*] ; capture dynamic var
-    (m r (take-while (fn [x]
-                       ;; (or (vertex? x)
-                       ;;     ...
-                       (if (@seen x)
-                         (on-cycle x)
-                         (do (swap! seen conj x) true)))
-                     r))))
+    (take-while (fn [x]
+                  ;; (or (vertex? x)
+                  ;;     ...
+                  (if (@seen x)
+                    (on-cycle x)
+                    (do (swap! seen conj x) true)))
+                r)))
 
 (defn prevent-cycles
   "Takes from the route while there is no duplicate within it. This is good for
