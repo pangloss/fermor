@@ -64,7 +64,7 @@
 
 (defn e* [{:keys [:graph/edges] :as graph}]
   (map (fn [[label g]]
-         (with-meta (-e g) {:graph graph :edge/label label}))
+         (some-> (-e g) (with-meta {:graph graph :edge/label label})))
        edges))
 
 (defn e [graph]
@@ -75,6 +75,9 @@
 
 (defn ^:dynamic *not-imeta* [meta x]
   (throw (Exception. "Can't attach metadata")))
+
+(defn as-route [graph x]
+  (with-meta [x] {:graph graph}))
 
 (defn use-graph [graph x]
   (let [meta {:graph graph}]

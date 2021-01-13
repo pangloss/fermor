@@ -643,3 +643,7 @@
     (m coll (lazy-seq
              (concat (take (first steps) coll)
                      (drop-take (rest steps) (drop (first steps) coll)))))))
+
+(defmacro f->> [& forms]
+  `(fn [r#]
+     (->> r# ~@forms)))
