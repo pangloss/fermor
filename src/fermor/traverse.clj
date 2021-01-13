@@ -41,6 +41,8 @@
 (defn sort-by [f r]
   (m r (clojure.core/sort-by f r)))
 
+(defn sort [r]
+  (m r (clojure.core/sort r)))
 ;;
 
 (defn ensure-seq
@@ -206,7 +208,7 @@
 
     fs: a collection of functions (fn [r]), each returning a collection or nil. Each will be called with the same starting route."
   [fs r]
-  (mapv (fn [f] (f r)) fs))
+  (m r (mapv (fn [f] (f r)) fs)))
 
 (defn merge-exhaustive
   "Merge a set of sequnces (or branches), including the full contents of each branch in order from first to last."

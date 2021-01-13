@@ -68,7 +68,7 @@
        edges))
 
 (defn e [graph]
-  (with-meta (join (e* graph)) {:graph graph}))
+  (some-> (join (e* graph)) (with-meta {:graph graph})))
 
 (defn ^:dynamic *no-graph-in-metadata* [r]
   (throw (Exception. "No graph present in metadata")))
@@ -83,10 +83,11 @@
   (let [meta {:graph graph}]
     (if (instance? IMeta x)
       (with-meta x meta)
-      (if (and x (seqable? x))
-        (when-let [s (seq x)]
-          (with-meta s meta))
-        (*not-imeta* meta x)))))
+      (if x
+        (if (seqable? x)
+          (with-meta (or (seq x) []) meta)
+          (*not-imeta* meta x))
+        (with-meta [] meta)))))
 
 (defn vertices-with-edge [graph label]
   (->> (get-in graph [:graph/edges label])
