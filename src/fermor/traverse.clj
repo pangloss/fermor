@@ -9,6 +9,13 @@
     (with-meta r' (meta r))
     r'))
 
+(defn e
+  "Preserve metadata"
+  [r e]
+  (if (instance? IMeta r)
+    (with-meta [e] (meta r))
+    [e]))
+
 ;; The standard arity versions of clojure.core's standard seq manipulation functions but metadata-preserving:
 
 (defn distinct [r]
@@ -43,6 +50,7 @@
 
 (defn sort [r]
   (m r (clojure.core/sort r)))
+
 ;;
 
 (defn ensure-seq
@@ -106,9 +114,16 @@
   (map (fn [v] (first {v (f v)})) r))
 
 (defn section
-  "Both f and section are functions."
+  "Apply a the section route to an element and then apply f to that section of the results.
+
+  Both f and section are functions."
   [f section r]
   (mapcat (comp f section) r))
+
+(defn context
+  "Like section, but the function f receives the element as context together with the section route."
+  [f section r]
+  (mapcat (fn [e] (f e (section e))) r))
 
 (defn sorted-section
   "This is mostly just an example of how to use sections to do sorting."
