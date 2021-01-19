@@ -1,5 +1,8 @@
 (ns fermor.traverse
-  (:refer-clojure :exclude [distinct map mapv keep filter remove take take-while drop])
+  (:refer-clojure :exclude [distinct map mapv keep filter remove take take-while drop mapcat
+                            shuffle take-nth take-last drop-last drop-while reverse
+                            dedupe random-sample replace rest butlast
+                            sorted-set sorted-set-by])
   (:import clojure.lang.IMeta))
 
 (defn m
@@ -9,17 +12,20 @@
     (with-meta r' (meta r))
     r'))
 
-(defn e
+(defn like
   "Preserve metadata"
   [r e]
   (if (instance? IMeta r)
     (with-meta [e] (meta r))
     [e]))
 
-;; The standard arity versions of clojure.core's standard seq manipulation functions but metadata-preserving:
+;; The standard arity versions of clojure.core's standard seq manipulation functions, but metadata-preserving:
 
 (defn distinct [r]
   (m r (clojure.core/distinct r)))
+
+(defn mapcat [f r]
+  (m r (clojure.core/mapcat f r)))
 
 (defn map [f r]
   (m r (clojure.core/map f r)))
@@ -39,17 +45,77 @@
 (defn take [n r]
   (m r (clojure.core/take n r)))
 
+(defn take-nth [r]
+  (m r (clojure.core/take-nth r)))
+
+(defn take-last [r]
+  (m r (clojure.core/take-last r)))
+
 (defn take-while [pred r]
   (m r (clojure.core/take-while pred r)))
 
 (defn drop [n r]
   (m r (clojure.core/drop n r)))
 
+(defn drop-last [r]
+  (m r (clojure.core/drop-last r)))
+
+(defn drop-while [pred r]
+  (m r (clojure.core/drop-while pred r)))
+
 (defn sort-by [f r]
   (m r (clojure.core/sort-by f r)))
 
 (defn sort [r]
   (m r (clojure.core/sort r)))
+
+(defn shuffle [r]
+  (m r (clojure.core/shuffle r)))
+
+(defn reverse [r]
+  (m r (clojure.core/reverse r)))
+
+(defn dedupe [r]
+  (m r (clojure.core/dedupe r)))
+
+(defn random-sample [prob r]
+  (m r (clojure.core/random-sample prob r)))
+
+(defn replace [smap r]
+  (m r (clojure.core/replace smap r)))
+
+(defn rest [r]
+  (m r (clojure.core/rest r)))
+
+(defn butlast [r]
+  (m r (clojure.core/butlast r)))
+
+
+;; for sorted sets:
+
+(defn sorted-set [r]
+  (m r (clojure.core/sorted-set r)))
+
+(defn sorted-set-by [comparator r]
+  (m r (clojure.core/sorted-set comparator r)))
+
+(defn subseq-route
+  "Like subseq except the sorted set is the last argument"
+  ([test key r]
+   (assert (instance? clojure.lang.Sorted r))
+   (m r (subseq r test key)))
+  ([start-test start-key end-test end-key r]
+   (assert (instance? clojure.lang.Sorted r))
+   (m r (subseq r start-test start-key end-test end-key))))
+
+(defn rsubseq-route
+  "Like rsubseq except the sorted set is the last argument"
+  ([test key r]
+   (assert (instance? clojure.lang.Sorted r))
+   (m r (rsubseq r test key)))
+  ([start-test start-key end-test end-key r]
+   (assert (instance? clojure.lang.Sorted r))
+   (m r (rsubseq r start-test start-key end-test end-key))))
 
 ;;
 
@@ -69,7 +135,7 @@
    Much faster if f has any cost at all."
   [f coll]
   (->> coll
-       (map (juxt f identity))
+       (clojure.core/map (juxt f identity))
        (clojure.core/sort-by #(nth % 0))
        (map #(nth % 1))
        (m coll)))
@@ -88,7 +154,7 @@
              (lazy-seq
                (cons (->> v
                           get-siblings
-                          (filter #(not= v %)))
+                          (clojure.core/filter #(not= v %)))
                      (sibling-seq vs))))]
      (m r (sibling-seq r))))
   ([to-parent from-parent r]
@@ -110,8 +176,10 @@
 
 (defn make-pairs
   "Map each element in r to a pair of [element (f element)]."
-  [f r]
-  (map (fn [v] (first {v (f v)})) r))
+  ([f r]
+   (map (fn [v] (first {v (f v)})) r))
+  ([f0 f1 r]
+   (map (fn [v] (first {(f0 v) (f1 v)})) r)))
 
 (defn section
   "Apply a the section route to an element and then apply f to that section of the results.
@@ -168,7 +236,7 @@
      r)))
 
 (defn lookahead-element
-  "This version of lookahead works on an individual element rather than on a route.
+  "This version of lookahead takes an individual element as source rather than a route.
 
    Ensure that the function produces a collection of at least one item.
 
@@ -223,7 +291,7 @@
 
     fs: a collection of functions (fn [r]), each returning a collection or nil. Each will be called with the same starting route."
   [fs r]
-  (m r (mapv (fn [f] (f r)) fs)))
+  (m r (clojure.core/mapv (fn [f] (f r)) fs)))
 
 (defn merge-exhaustive
   "Merge a set of sequnces (or branches), including the full contents of each branch in order from first to last."
@@ -607,9 +675,9 @@
                       ((fn [[f :as xs]]
                          (when-let [s (seq xs)]
                            (if (contains? @seen-atom f)
-                             (recur (rest s))
+                             (recur (clojure.core/rest s))
                              (do (when update (swap! seen-atom conj f))
-                                 (cons f (step (rest s)))))))
+                                 (cons f (step (clojure.core/rest s)))))))
                        xs)))]
           (step r)))))
 
@@ -647,7 +715,7 @@
   [steps coll]
   (when (seq steps)
     (m coll (lazy-seq
-             (take-drop (rest steps) (drop (first steps) coll))))))
+             (take-drop (clojure.core/rest steps) (clojure.core/drop (first steps) coll))))))
 
 (defn take-drop
   "Alternatively take and drop chunks of the given size from the collection.
@@ -658,9 +726,17 @@
   [steps coll]
   (when (seq steps)
     (m coll (lazy-seq
-             (concat (take (first steps) coll)
-                     (drop-take (rest steps) (drop (first steps) coll)))))))
+             (concat (clojure.core/take (first steps) coll)
+                     (drop-take (clojure.core/rest steps) (clojure.core/drop (first steps) coll)))))))
 
-(defmacro f->> [& forms]
+(defmacro f->>
+  "Returns a function wrapping the chained methods."
+  [& forms]
   `(fn [r#]
      (->> r# ~@forms)))
+
+(defmacro f-$>>
+  "Returns a function wrapping the chained methods, but inserting (as-route g) at the start of the chain."
+  [g & forms]
+  `(f->> (fermor.bifurcan/as-route ~g)
+         ~@forms))

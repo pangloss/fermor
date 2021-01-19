@@ -1,6 +1,6 @@
 (ns fermor.bifurcan
-  (:refer-clojure :exclude [filter])
-  (:require [fermor.traverse :refer [join m filter]]
+  (:refer-clojure :exclude [filter keep])
+  (:require [fermor.traverse :refer [join m filter keep]]
             [clojure.pprint :refer [simple-dispatch]])
   (:import (io.lacuna.bifurcan DirectedGraph DirectedAcyclicGraph IGraph Graphs ISet)
            (clojure.lang IMeta)))
