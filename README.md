@@ -1,4 +1,6 @@
+<p align="center">
 ![](doc/mani.jpg)
+</p>
 
 [Fermor](https://github.com/pangloss/fermor) provides a flexible and high
 performance streaming data traversal library built upon Clojure's lazy seq
@@ -7,17 +9,26 @@ elegantly handling cycles, deep nesting and other patterns commonly seen in
 graph data.
 
 This library is a distillation of my experience creating and working with my
-[Pacer](https://github.com/pangloss/pacer) library, which I used to build
-diverse applications. Compared to Pacer, Fermor is much lighter weight, more
-flexible, simpler and far faster, despite Pacer (as of a few years ago) itself
-generally being much faster than other graph traversal mechanisms that I had
-seen.
+[Pacer](https://github.com/pangloss/pacer) library, which I have used to build
+diverse sophisticated applications. Compared to Pacer, Fermor is much lighter
+weight, more flexible, simpler and far faster, despite Pacer (as of a few years
+ago) itself generally being much faster than other graph traversal mechanisms
+that I had seen.
 
-Bundled with the traversal library is a (currently) rudimentary but still useful
-fast immutable in-memory directed property graph database built on top of the
-very elegant Bifurcan library. However, the Fermor traversal namespace works
-well with any data source and there is no dependency between it and the
-bifurcan-based graph.
+Bundled with the traversal library is a (currently) very rudimentary (but still
+useful) fast immutable in-memory directed property graph database built on 
+the very elegant [Bifurcan](https://github.com/lacuna/bifurcan) library.
+However, the Fermor traversal namespace works well with any data source and
+there is no dependency between it and the bifurcan-based graph. I use it to
+build up graphs of 1-10 million vertices and edges in a under 10 seconds, with
+all queries I've needed to do so far running in 10-20ms, and full edge counts in
+1-2s, all on my laptop.
+
+
+## Early pre-alpha software
+
+I am using this and tweaking it for my needs as I go. Don't expect *any*
+stability until I move it out of alpha.
 
 ## The traversal library
 
@@ -107,33 +118,11 @@ Or do a negative lookahead to say what we don't want (like the core `remove` fun
 ```
 
 The handy `f->>` macro is very useful for defining nested routes as arguments to
-functions. I especially use it when exploring data interactively. Writing `(map)
-(f->> walk chew-gum)` is equivalent to writing `(map #(->> % walk chew-gum))`.
-
-
-Don't like these examples:
+functions. I especially use it when exploring data interactively. These two statements are equivalent:
 
 ```clojure
-(defn desireable-attributes [cities]
-  (->> cities
-       (branch [(f->> (filter low-crime?))
-                (f->> (filter good-weather?))
-                (f->> (filter good-jobs?))
-                (f->> (filter low-prices?))
-                (f->> (filter mountains?))
-                (f->> (filter coastal?))])
-       merge-exhaustive))
-
-(defn desireable-attributes [city]
-  (->> city
-       (branch [low-crime?
-                good-weather?
-                good-jobs?
-                low-prices?
-                mountains?
-                coastal?])
-       (remove nil?)))
-
-(defn desireable-cities [city]
-  (lookahead {:min 4} desireable-attributes))
+(map (f->> walk chew-gum) data)
+(map #(->> % walk chew-gum) data)`.
 ```
+
+Need to find a better example, and haven't written about the interesting stuff yet...
