@@ -1,5 +1,5 @@
 <p align="center">
-![](doc/mani.jpg)
+<img src=doc/mani.jpg />
 </p>
 
 [Fermor](https://github.com/pangloss/fermor) provides a flexible and high
