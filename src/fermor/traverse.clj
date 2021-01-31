@@ -177,9 +177,9 @@
 (defn make-pairs
   "Map each element in r to a pair of [element (f element)]."
   ([f r]
-   (map (fn [v] (first {v (f v)})) r))
+   (map (fn [v] [v (f v)]) r))
   ([f0 f1 r]
-   (map (fn [v] (first {(f0 v) (f1 v)})) r)))
+   (map (fn [v] [(f0 v) (f1 v)]) r)))
 
 (defn section
   "Apply a the section route to an element and then apply f to that section of the results.

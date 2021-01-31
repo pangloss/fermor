@@ -20,7 +20,7 @@ useful) fast immutable in-memory directed property graph database built on
 the very elegant [Bifurcan](https://github.com/lacuna/bifurcan) library.
 However, the Fermor traversal namespace works well with any data source and
 there is no dependency between it and the bifurcan-based graph. I use it to
-build up graphs of 1-10 million vertices and edges in a under 10 seconds, with
+build up graphs of 1-10 million vertices and edges in under 10 seconds, with
 all queries I've needed to do so far running in 10-20ms, and full edge counts in
 1-2s, all on my laptop.
 
