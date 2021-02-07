@@ -19,9 +19,12 @@
                                ;; Edge
                                out-vertex in-vertex
                                ;; Path
-                               reverse-path)
+                               reverse-path
+                               ;; KindId
+                               id k lookup)
              ;; Bifurcan Graph
              (fermor.graph linear forked dag-edge digraph-edge undirected-edge build-graph
+                           vertices-with-edge
                            ;; read printed graph elements
                            v e-> e<-)
              ;; Path
@@ -254,6 +257,12 @@
 
 (defn same-v [r]
   (map go-back r))
+
+(defn properties [r]
+  (map get-property r))
+
+(defn has-property [r k v]
+  (filter (fn [e] (= v (get (get-property e) k))) r))
 
 ;; for sorted sets:
 

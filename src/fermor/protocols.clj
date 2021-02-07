@@ -1,5 +1,6 @@
 (ns fermor.protocols
-  (:require [conditions :refer [condition default]])
+  (:require [conditions :refer [condition default]]
+            [clojure.pprint :refer [simple-dispatch]])
   (:import clojure.lang.IMeta))
 
 ;; You probably want to use set-config to change these globally.
@@ -27,6 +28,18 @@
             (alter-var-root setting (constantly v))
             (instance? clojure.lang.Atom setting)
             (reset! setting v)))))
+
+(defrecord KindId [kind id])
+
+(defmethod print-method KindId [^KindId k ^java.io.Writer w]
+  (.write w "(id ")
+  (print-method (.kind k) w)
+  (.write w " ")
+  (print-method (.id k) w)
+  (.write w ")"))
+
+(defmethod simple-dispatch KindId [o]
+  (print-method o *out*))
 
 (defprotocol Graph
   (get-vertex [g id] "Find a vertex by ID. See also parse-vertex-id."))
@@ -118,3 +131,14 @@
   [x]
   (cond (satisfies? Graph x) x
         (satisfies? Element x) (get-graph x)))
+
+;; Kind Id:
+
+(defn id [kind id]
+  (->KindId kind id))
+
+(defn k "synonym for `id`" [kind id]
+  (->KindId kind id))
+
+(defn lookup [kid g]
+  (get-vertex g kid))

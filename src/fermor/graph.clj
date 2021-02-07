@@ -27,24 +27,23 @@
 (declare ->LinearGraph ->ForkedGraph ->V ->E graph-equality)
 
 (defn dag-edge
-  (^IGraph [] (DirectedAcyclicGraph.))
+  (^IGraph [] (.linear (DirectedAcyclicGraph.)))
   (^IGraph [linear?]
    (if linear?
-     (.linear (dag-edge))
-     (dag-edge))))
+     (dag-edge)
+     (.forked (dag-edge)))))
 (defn digraph-edge
-  (^IGraph [] (DirectedGraph.))
+  (^IGraph [] (.linear (DirectedGraph.)))
   (^IGraph [linear?]
    (if linear?
-     (.linear (digraph-edge))
-     (digraph-edge))))
-
+     (digraph-edge)
+     (.forked (digraph-edge)))))
 (defn undirected-edge
-  (^IGraph [] (io.lacuna.bifurcan.Graph.))
+  (^IGraph [] (.linear (io.lacuna.bifurcan.Graph.)))
   (^IGraph [linear?]
    (if linear?
-     (.linear (undirected-edge))
-     (undirected-edge))))
+     (undirected-edge)
+     (.forked (undirected-edge)))))
 
 ;; This does not allow multiple edges of the same type between identical
 ;; vertices. That's ok for most cases but a bit inconvenient. It can be modelled
@@ -118,11 +117,11 @@
 
 (defn- -add-edges
   (^LinearGraph [^LinearGraph graph label pairs-or-triples]
-   (-add-edges graph label #(dag-edge true) pairs-or-triples))
+   (-add-edges graph label nil pairs-or-triples))
   (^LinearGraph [^LinearGraph graph label edge-type pairs-or-triples]
    (let [^IGraph edges (let [x (.get ^IMap (.edges graph) label)]
                          (if (.isEmpty x)
-                           (edge-type)
+                           (if edge-type (edge-type) (digraph-edge))
                            (.get x)))
          edges (reduce (fn [^IGraph edges [out-v in-v edge-property]]
                          (.link edges out-v in-v edge-property))
