@@ -1,6 +1,7 @@
 {:paths   ["src"]
  :deps    {org.clojure/clojure          {:mvn/version "1.10.1"}
-           io.lacuna/bifurcan           {:mvn/version "0.2.0-alpha4"}}
+           io.lacuna/bifurcan           {:mvn/version "0.2.0-alpha4"}
+           conditions/conditions        {:local/root "../conditions"}}
  :aliases {:test     {:extra-paths ["test"]
                       :jvm-opts ["-XX:-OmitStackTraceInFastThrow"]
                       :extra-deps  {}}}}
