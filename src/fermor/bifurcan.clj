@@ -1,9 +1,18 @@
 (ns fermor.bifurcan
   (:refer-clojure :exclude [filter keep])
   (:require [fermor.traverse :refer [join m filter keep]]
+            [conditions :refer [condition error default]]
             [clojure.pprint :refer [simple-dispatch]])
   (:import (io.lacuna.bifurcan DirectedGraph DirectedAcyclicGraph IGraph Graphs ISet)
            (clojure.lang IMeta)))
+
+(defn route-graph [r]
+  (or (:graph (meta r))
+      (condition :route/graph r (error "No graph present in route metadata"))))
+
+(defn element-graph [r]
+  (or (:graph (meta r))
+      (condition :element/graph r (error "No graph present in element metadata"))))
 
 (defmethod print-method IGraph [o ^java.io.Writer w]
   (.write w "<Graph!>"))
@@ -70,12 +79,6 @@
 (defn e [graph]
   (some-> (join (e* graph)) (with-meta {:graph graph})))
 
-(defn ^:dynamic *no-graph-in-metadata* [r]
-  (throw (Exception. "No graph present in metadata")))
-
-(defn ^:dynamic *not-imeta* [meta x]
-  (throw (Exception. "Can't attach metadata")))
-
 (defn as-route [graph x]
   (with-meta [x] {:graph graph}))
 
@@ -86,8 +89,8 @@
       (if x
         (if (seqable? x)
           (with-meta (or (seq x) []) meta)
-          (*not-imeta* meta x))
-        (with-meta [] meta)))))
+          (condition :not-imeta [x meta] (error "Can't attach metadata to entities of this type" {:type (type x)})))
+        (condition :not-imeta/nil meta (default (with-meta [] meta)))))))
 
 (defn vertices-with-edge [graph label]
   (->> (get-in graph [:graph/edges label])
@@ -160,23 +163,19 @@
 
 (defn out*
   ([label vr]
-   (if-let [g (:graph (meta vr))]
-     (graph-out* g label vr)
-     (*no-graph-in-metadata* vr)))
+   (let [g (route-graph vr)]
+     (graph-out* g label vr)))
   ([label f vr]
-   (if-let [g (:graph (meta vr))]
-     (graph-out* g label f vr)
-     (*no-graph-in-metadata* vr))))
+   (let [g (route-graph vr)]
+     (graph-out* g label f vr))))
 
 (defn in*
   ([label vr]
-   (if-let [g (:graph (meta vr))]
-     (graph-in* g label vr)
-     (*no-graph-in-metadata* vr)))
+   (let [g (route-graph vr)]
+     (graph-in* g label vr)))
   ([label f vr]
-   (if-let [g (:graph (meta vr))]
-     (graph-in* g label f vr)
-     (*no-graph-in-metadata* vr))))
+   (let [g (route-graph vr)]
+     (graph-in* g label f vr))))
 
 (defn out
   ([label vr]
@@ -203,24 +202,20 @@
 (defn has-property
   "Filters the route for elements that have the specified property."
   ([property r]
-   (if-let [props (:graph/properties (:graph (meta r)))]
-     (filter #(find (props %) property) r)
-     (*no-graph-in-metadata* r)))
+   (let [props (:graph/properties (route-graph r))]
+     (filter #(find (props %) property) r)))
   ([property values-set r]
-   (if-let [props (:graph/properties (:graph (meta r)))]
-     (filter #(values-set (get (props %) property)) r)
-     (*no-graph-in-metadata* r))))
+   (let [props (:graph/properties (route-graph r))]
+     (filter #(values-set (get (props %) property)) r))))
 
 (defn property
   "Produces a lazy sequence of the value of the given property."
   [property r]
-  (if-let [props (:graph/properties (:graph (meta r)))]
-    (keep #(get (props %) property) r)
-    (*no-graph-in-metadata* r)))
+  (let [props (:graph/properties (route-graph r))]
+    (keep #(get (props %) property) r)))
 
 (defn properties
   "Produces a lazy sequence of the value of the given property."
   [r]
-  (if-let [props (:graph/properties (:graph (meta r)))]
-    (keep #(props %) r)
-    (*no-graph-in-metadata* r)))
+  (let [props (:graph/properties (route-graph r))]
+    (keep #(props %) r)))

@@ -3,6 +3,8 @@
                             shuffle take-nth take-last drop-last drop-while reverse
                             dedupe random-sample replace rest butlast
                             sorted-set sorted-set-by])
+  (:require [conditions.core :refer [condition manage lazy-conditions]]
+            [conditions.handlers :as h])
   (:import clojure.lang.IMeta))
 
 (defn m
@@ -681,27 +683,28 @@
                        xs)))]
           (step r)))))
 
-(defn ^:dynamic *on-cycle* [v]
-  (throw (ex-info "Cycle encountered" {:vertex v})))
-
 (defn no-cycles!
-  "Like prevent-cycles, but call *on-cycle* (and by default raise an exception) if a cycle is encountered."
+  "Like prevent-cycles, but raise an :on-cycle condition (which by default raises an ex-info) if a cycle is encountered.
+
+  Return false from :on-cycle to break out of the cycle, return true to continue
+  cycling. If you don't handle the :on-cycle condition, an exception will be
+  raised."
   [r]
-  (let [seen (atom #{})
-        on-cycle *on-cycle*] ; capture dynamic var
-    (take-while (fn [x]
-                  ;; (or (vertex? x)
-                  ;;     ...
-                  (if (@seen x)
-                    (on-cycle x)
-                    (do (swap! seen conj x) true)))
-                r)))
+  (let [seen (atom #{})]
+    (lazy-conditions
+     (take-while (fn [x]
+                   ;; (or (vertex? x)
+                   ;;     ...
+                   (if (@seen x)
+                     (condition :on-cycle x (h/error "Cycle encountered" {:vertex x}))
+                     (do (swap! seen conj x) true)))
+                 r))))
 
 (defn prevent-cycles
   "Takes from the route while there is no duplicate within it. This is good for
   preventing cycles in chains of to-one or from-one relationships."
   [r]
-  (binding [*on-cycle* (constantly false)]
+  (manage [:on-cycle false]
     (no-cycles! r)))
 
 (declare take-drop)
