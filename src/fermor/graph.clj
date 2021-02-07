@@ -24,23 +24,23 @@
         (satisfies? Forked x) x
         :else (condition :unknown-type-for/forked x)))
 
-(declare ->LinearGraph ->ForkedGraph ->V ->E)
+(declare ->LinearGraph ->ForkedGraph ->V ->E graph-equality)
 
 (defn dag
-  ([] (DirectedAcyclicGraph.))
-  ([linear?]
+  (^IGraph [] (DirectedAcyclicGraph.))
+  (^IGraph [linear?]
    (if linear?
      (.linear (dag))
      (dag))))
 (defn digraph
-  ([] (DirectedGraph.))
-  ([linear?]
+  (^IGraph [] (DirectedGraph.))
+  (^IGraph [linear?]
    (if linear?
      (.linear (digraph))
      (digraph))))
 (defn undirected-graph
-  ([] (io.lacuna.bifurcan.Graph.))
-  ([linear?]
+  (^IGraph [] (io.lacuna.bifurcan.Graph.))
+  (^IGraph [linear?]
    (if linear?
      (.linear (undirected-graph))
      (undirected-graph))))
@@ -62,18 +62,19 @@
   (_getProperty ^java.util.Optional [])
   (_setProperty ^IPropertyCache [^java.util.Optional p]))
 
-(deftype LinearGraph [^IMap edges ^IMap properties metadata]
+(deftype LinearGraph [^IMap edges ^IMap properties settings metadata]
+  Object
+  (equals [a b] (graph-equality a (-unwrap b)))
+  (hashCode [e] (hash-combine (.hashCode edges) (.hashCode properties)))
+
   clojure.lang.IObj
   (withMeta [o m]
     (if (= m metadata)
       o
-      (->LinearGraph edges properties m)))
+      (->LinearGraph edges properties settings m)))
 
   clojure.lang.IMeta
   (meta [o] metadata)
-
-  Wrappable
-  (-unwrap [e] (-unwrap (to-forked e)))
 
   IEdgeGraphs
   (_getLabels ^clojure.lang.IPersistentVector [g]
@@ -86,9 +87,9 @@
     (let [x (.get edges label)]
       (if (.isEmpty x)
         g
-        (->LinearGraph (.remove edges label) properties nil))))
+        (->LinearGraph (.remove edges label) properties settings nil))))
   (_addEdgeGraph ^ILabelGraphs [g label ^IGraph edge]
-    (->LinearGraph (.put edges label edge) properties nil))
+    (->LinearGraph (.put edges label edge) properties settings nil))
 
   Linear
   (to-forked [g]
@@ -97,21 +98,37 @@
                                           (apply [this k v]
                                             (.forked ^IGraph v)))))
                    (.forked properties)
+                   settings
                    metadata)))
+
+(defn build-graph
+  ([]
+   (->LinearGraph (.linear (Map.)) (.linear (Map.)) nil nil))
+  ([settings]
+   (->LinearGraph (.linear (Map.)) (.linear (Map.)) settings nil))
+  ([settings metadata]
+   (->LinearGraph (.linear (Map.)) (.linear (Map.)) settings metadata)))
+
+(defn add-value-semantics [graph]
+  ;; Note: public DirectedAcyclicGraph(ToLongFunction<V> hashFn, BiPredicate<V, V> equalsFn) exists, too.
+  (condition :todo nil
+             (error "TODO: re initialize the graph so that all maps have value semantics\n"
+                    "via Map(ToLongFunction<K> hashFn, BiPredicate<K,K> equalsFn)")))
 
 (defn- -add-edges
   (^LinearGraph [^LinearGraph graph label pairs-or-triples]
    (-add-edges graph label #(dag true) pairs-or-triples))
   (^LinearGraph [^LinearGraph graph label edge-type pairs-or-triples]
-   (let [^IGraph edges (let [x (.get (.edges graph) label)]
+   (let [^IGraph edges (let [x (.get ^IMap (.edges graph) label)]
                          (if (.isEmpty x)
                            (edge-type)
                            (.get x)))
          edges (reduce (fn [^IGraph edges [out-v in-v edge-property]]
                          (.link edges out-v in-v edge-property))
                        edges pairs-or-triples)]
-     (->LinearGraph (.put (.edges graph) label edges)
+     (->LinearGraph (.put ^IMap (.edges graph) label edges)
                     (.properties graph)
+                    (.settings graph)
                     (.metadata graph)))))
 
 (defn- -add-edge
@@ -130,6 +147,7 @@
                                (.put props id nil))))
                          (.properties graph)
                          id-property-pairs)
+                 (.settings graph)
                  (.metadata graph)))
 
 (defn- -add-vertex
@@ -146,12 +164,16 @@
    :add-vertex #'-add-vertex
    :set-property #'-add-vertex})
 
-(deftype ForkedGraph [^IMap edges ^IMap properties metadata]
+(deftype ForkedGraph [^IMap edges ^IMap properties settings metadata]
+  Object
+  (equals [a b] (graph-equality a (-unwrap b)))
+  (hashCode [e] (hash-combine (.hashCode edges) (.hashCode properties)))
+
   clojure.lang.IObj
   (withMeta [o m]
     (if (= m metadata)
       o
-      (->ForkedGraph edges properties m)))
+      (->ForkedGraph edges properties settings m)))
 
   clojure.lang.IMeta
   (meta [o] metadata)
@@ -170,9 +192,9 @@
     (let [x (.get edges label)]
       (if (.isEmpty x)
         g
-        (->ForkedGraph (.remove edges label) properties nil))))
+        (->ForkedGraph (.remove edges label) properties settings nil))))
   (_addEdgeGraph ^ILabelGraphs [g label ^IGraph edge]
-    (->ForkedGraph (.put edges label edge) properties nil))
+    (->ForkedGraph (.put edges label edge) properties settings nil))
 
   Graph
   (get-vertex [g id]
@@ -185,9 +207,44 @@
                                  (apply [this k v]
                                    (.linear ^IGraph v))))
                    (.linear properties)
+                   settings
                    metadata)))
 
+(defn graph-settings [g]
+  (condp instance? g
+    ForkedGraph (.settings ^ForkedGraph g)
+    LinearGraph (.settings ^LinearGraph g)))
+
+(defn property-equality? [g]
+  (:property-equality? (graph-settings g)))
+
+(defn- graph-equality [a b]
+  ;; TODO: include settings in equality and hashing?
+  (if-let [[edges properties] (condp instance? a
+                                LinearGraph [(.edges ^LinearGraph a) (.properties ^LinearGraph a)]
+                                ForkedGraph [(.edges ^ForkedGraph a) (.properties ^ForkedGraph a)]
+                                false)]
+    (condp instance? b
+      LinearGraph (and (.equals edges (.edges ^LinearGraph b))
+                       (.equals properties (.properties ^LinearGraph b)))
+      ForkedGraph (and (.equals edges (.edges ^ForkedGraph b))
+                       (.equals properties (.properties ^ForkedGraph b)))
+      false)
+    false))
+
 (deftype E [label out-v in-v ^:unsynchronized-mutable ^java.util.Optional property used-forward metadata]
+  Object
+  (equals [a b] (let [b (-unwrap b)]
+                  (and (instance? E b)
+                       (= label (-label b))
+                       (= out-v (out-vertex b))
+                       (= in-v (in-vertex b))
+                       (if (property-equality? (get-graph a))
+                         (= property (get-property b))
+                         true))))
+
+  (hashCode [e] (hash-combine label (hash-combine out-v in-v)))
+
   clojure.lang.IObj
   (withMeta [o m]
     (if (= m metadata)
@@ -207,14 +264,17 @@
   Edge
   (-label [e] label)
   (out-vertex [e] out-v)
-  (in-vertex [e] in-v))
+  (in-vertex [e] in-v)
+
+  TraversalDirection ;; see ->?, <-?, go-back, go-on, other-v, same-v
+  (traversed-forward [e] used-forward))
 
 (defn- -get-edge-property [^E e]
-  (if-let [p (._getProperty e)]
+  (if-let [p ^Optional (._getProperty e)]
     (when-not (.isEmpty p)
       (.get p))
-    (let [g (get-graph (.out_v e))
-          edges (.get (.edges g) (.label e))]
+    (let [g ^ForkedGraph (get-graph (.out_v e))
+          edges (.get ^IMap (.edges g) (.label e))]
       (when-not (.isEmpty edges)
         (let [edges ^IGraph (.get edges)
               edge (.edge edges
@@ -222,6 +282,9 @@
                           (element-id (.in_v e)))]
           edge)))))
 
+;; FIXME: validate whether using extend imposes a performance penalty vs implementation within the deftype.
+;; the reason to use extend is it is easier to redefine the instance methods vs direct implementation within the type.
+;; Most likely this turns into a TODO: integrate all `extend` use back into the defining type.
 (extend E
   Element
   {:element-id (constantly nil)
@@ -230,7 +293,7 @@
 
 (defmethod print-method E [^E e ^java.io.Writer w]
   (if *compact-edge-printing*
-    (if (.used_forward e)
+    (if (traversed-forward e)
       (do
         (.write w "-")
         (print-method (.label e) w)
@@ -240,7 +303,7 @@
         (print-method (.label e) w)
         (.write w "-")))
     (do
-      (if (.used_forard e)
+      (if (traversed-forward e)
         (.write w "(e-> ")
         (.write w "(e<- "))
       (print-method (element-id (.out_v e)) w)
@@ -258,6 +321,15 @@
   (print-method o *out*))
 
 (deftype V [^ForkedGraph graph id ^:unsynchronized-mutable ^java.util.Optional property metadata]
+  Object
+  (equals [a b] (let [b (-unwrap b)]
+                  (and (instance? V b)
+                       (= id (element-id b))
+                       (if (property-equality? graph)
+                         (= property (get-property b))
+                         true))))
+  (hashCode [e] (hash id))
+
   clojure.lang.IObj
   (withMeta [o m]
     (if (= m metadata)
@@ -278,10 +350,10 @@
   (element-id [e] id)
   (get-graph [e] graph)
   (get-property [e]
-    (if-let [p (.property e)]
-      (when-not (.isEmpty p)
-        (.get p))
-      (let [p (.get (.properties graph) id)]
+    (if property
+      (when-not (.isEmpty property)
+        (.get property))
+      (let [p (.get ^IMap (.properties graph) id)]
         (set! (.property e) p)
         (when-not (.isEmpty p)
           (.get p))))))
@@ -347,11 +419,11 @@
   (if *compact-vertex-printing*
     (do
       (.write w "(v ")
-      (print-method (.id e) w)
+      (print-method (.id ^V e) w)
       (.write w ")"))
     (do
       (.write w "(v ")
-      (print-method (.id e) w)
+      (print-method (.id ^V e) w)
       (when-let [p (get-property e)]
         (.write w " ")
         (print-method p w))
@@ -382,24 +454,30 @@
   (get-graph (e-> 1 :xx [{:a 1 :b 2}] 4))
   (get-graph (v 1))
   (require '[fermor.path :as p])
+
+  (def g    (-> (build-graph)
+                (add-edges :testing dag (partition 3 1 (range 100000)))
+                (add-edges :blogging dag (partition 2 1 (range 100000 0 -1)))
+                (add-vertices (partition 2 1 (range 100000)))
+                (add-edge :boo 4 999 {:a 1})
+                time))
+
+  (= (hash g) (hash (forked g)))
+  (= (hash g) (hash (add-edge g :xxxxxxx 4 998 {:a 2})))
+
   (time
-   (binding [*compact-path-printing* true
-             *compact-vertex-printing* true]
-     (-> (->LinearGraph (Map.) (.linear (Map.)) nil)
-         (add-edges :testing dag (partition 3 1 (range 10)))
-         (add-edges :blogging dag (partition 2 1 (range 10 0 -1)))
-         (add-vertices (partition 2 1 (range 100)))
-         (add-edge :boo 4 999 {:a 1})
-         forked
-         (._removeEdgeGraph :testing)
-         ;; (._removeEdgeGraph :blogging)
-         (get-vertex 4)
-         (p/with-path)
-         (->>
-          (-out-edges)
-          (mapv in-vertex)
-          (mapcat -in-edges)
-          (map out-vertex)))))
+   (-> (build-graph)
+       (add-edges :testing dag (partition 3 1 (range 100)))
+       (add-edges :blogging dag (partition 2 1 (range 100 0 -1)))
+       (add-vertices (partition 2 1 (range 1000)))
+       (add-edge :boo 4 999 {:a 1})
+       forked
+       (get-vertex 4)
+       (p/with-path)
+       (->>
+        in
+        in in
+        out out out out)))
 
  ,)
 

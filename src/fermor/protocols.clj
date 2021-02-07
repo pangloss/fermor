@@ -1,23 +1,58 @@
 (ns fermor.protocols
+  (:require [conditions :refer [condition default]])
   (:import clojure.lang.IMeta))
 
-(def ^:dynamic *compact-vertex-printing* false)
+;; You probably want to use set-config to change these globally.
+(def ^:dynamic *compact-vertex-printing* true)
 (def ^:dynamic *compact-edge-printing* false)
 (def ^:dynamic *compact-path-printing* true)
+
+(def config-keys
+  "Available keys for `set-config` and the vars they set"
+  (atom
+   {:compact-vertex-printing #'*compact-vertex-printing*
+    :compact-edge-printing #'*compact-edge-printing*
+    :compact-path-printing* #'*compact-path-printing*}))
+
+(defn set-config!
+  "A convenient way to alter default global configuration settings residing in
+  dynamic vars. The available keys are in `config-keys`.
+
+  Example:
+    (set-config! {:compact-edge-printing true})"
+  [settings]
+  (doseq [[k v] settings]
+    (when-let [setting (@config-keys k)]
+      (cond (var? setting)
+            (alter-var-root setting (constantly v))
+            (instance? clojure.lang.Atom setting)
+            (reset! setting v)))))
 
 (defprotocol Graph
   (get-vertex [g id] "Find a vertex by ID. See also parse-vertex-id."))
 
 (defprotocol MutableGraph
-  (add-vertices [g id-property-pairs])
-  (add-vertex [g id]
+  (add-vertices [g id-property-pairs]
+    "The second best way to add multiple vertices to a graph after `add-edges`,
+    but this way allows you to associate a property to the vertex.")
+  (add-vertex
+    [g id]
     [g id property]
-    "Add a vertex. If `property` is provided, attach it to the vertex as well. If a conflicting value in a
-         unique index already exists, raises an exception.")
-  (add-edge [g label out-v in-v] [g label out-v in-v property]
+    "Add a vertex. If `property` is provided, attach it to the vertex as well.")
+  (add-edge
+    [g label out-v in-v]
+    [g label out-v in-v property]
     "Add an edge from v to in-v with the given label string.")
-  (add-edges [g label pairs] [g label edge-type pairs] "Add a edges between each pair of vertices in `pairs`.")
-  (set-property [g element value] "Reset an element's property to a new value, replacing the old value."))
+  (add-edges
+    [g label pairs]
+    [g label edge-type pairs]
+    "Add a edges between each pair of vertices in `pairs`.")
+  (set-property [g element value]
+    "Reset an element's property to a new value, replacing the old value.
+
+     Note that you can use a map for the property to achieve the typical property set
+     attached to an element. Using atoms for the property or anything else you like
+     is also possible."))
 
 (defprotocol Wrappable
   (-unwrap [x] "Recursively remove wrapper classes until it's an original"))
@@ -25,13 +60,7 @@
 (defprotocol Element
   (element-id [e] "Return the id of the given vertex or edge.")
   (get-graph [e] "Return the graph the element is part of.")
-  (get-property [e] [e k]))
-
-#_
-(defprotocol ElementProperties
-  (property-keys [e] "Return a list of property keys.")
-  (get-property [e key] "Get a property by its key.")
-  (has-property? [e key] "Return true if a property with the given key exists."))
+  (get-property [e] [e k] "Get the property object for the element."))
 
 (defprotocol Vertex
   (-out-edges [v]
@@ -47,6 +76,9 @@
   (-label [e] "Return the edge label.")
   (in-vertex [e] "Return the in vertex of the edge (in)-->(out).")
   (out-vertex [e] "Return the out vertex of the edge (in)-->(out)."))
+
+(defprotocol TraversalDirection
+  (traversed-forward [e]))
 
 (defprotocol Path
   (reverse-path [e] "Get a lazy sequence of the path in reverse.
@@ -287,3 +319,25 @@
   "Like out, but use sort-by-f to sort the elements attached to each vertex before including them in the overall collection."
   [labels sort-by-f r]
   (out labels #(sort-by sort-by-f %) r))
+
+;; TraversalDirection methods
+
+(defn ->? [e]
+  (if (satisfies? TraversalDirection e)
+    (traversed-forward e)
+    (condition :traversal-direction/unknown e (default true))))
+
+(defn <-? [e]
+  (not (->? e)))
+
+(defn go-back [e]
+  (if (->? e) (out-v e) (in-v e)))
+
+(defn go-on [e]
+  (if (->? e) (in-v e) (out-v e)))
+
+(defn other-v [r]
+  (map go-on r))
+
+(defn same-v [r]
+  (map go-back r))

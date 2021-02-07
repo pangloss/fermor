@@ -1,22 +1,19 @@
 (ns fermor.path
   (:use fermor.protocols))
 
-; NOTE: equality is oddly strict because I cannot change equality semantics of Neo elements which are not wrapped. Change this if that changes.
-;       meanwhile use core/equal?
-
 (deftype PVertex [element path]
   Object
-  (equals [a b] (and (instance? PVertex b) (= element (.element b))))
+  (equals [a b] (and (instance? PVertex b) (= element (.element ^PVertex b))))
   (hashCode [e] (.hashCode element)))
 
 (deftype PEdge [element path]
   Object
-  (equals [a b] (and (instance? PEdge b) (= element (.element b))))
+  (equals [a b] (and (instance? PEdge b) (= element (.element ^PEdge b))))
   (hashCode [e] (.hashCode element)))
 
 (deftype PGraph [graph]
   Object
-  (equals [a b] (and (instance? PGraph b) (= graph (.graph b))))
+  (equals [a b] (and (instance? PGraph b) (= graph (.graph ^PGraph b))))
   (hashCode [e] (.hashCode graph)))
 
 (defn with-path
@@ -114,7 +111,6 @@
     ([v labels]
      (->> (-out-edges (.element v) labels)
           (map #(PEdge. % v))))
-    #_
     ([v _ prepared-labels]
      (->> (-out-edges (.element v) _ prepared-labels)
           (map #(PEdge. % v)))))
@@ -124,7 +120,6 @@
     ([v labels]
      (->> (-in-edges (.element v) labels)
           (map #(PEdge. % v))))
-    #_
     ([v _ prepared-labels]
      (->> (-in-edges (.element v) _ prepared-labels)
           (map #(PEdge. % v)))))
@@ -151,8 +146,9 @@
 
   Path
   (reverse-path [e]
+    ^:reverse-path
     (lazy-seq
-      (cons (.element e) (when (.path e) (reverse-path (.path e)))))))
+     (cons (.element e) (when (.path e) (reverse-path (.path e)))))))
 
 
 ;; a nice thing would be to show in paths when an edge is traversed in reverse, 2 possibilities: inspect the path or mark the edge when traversing it. Marking it makes other natural.
