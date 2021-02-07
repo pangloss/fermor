@@ -1,135 +1,284 @@
-(ns fermor.traverse
-  (:refer-clojure :exclude [distinct map mapv keep filter remove take take-while drop mapcat
-                            shuffle take-nth take-last drop-last drop-while reverse
-                            dedupe random-sample replace rest butlast
-                            sorted-set sorted-set-by])
-  (:require [conditions.core :refer [condition manage lazy-conditions]]
-            [conditions.handlers :as h])
-  (:import clojure.lang.IMeta))
+(ns fermor.core
+  (:require [conditions :refer [condition manage lazy-conditions error default]]
+            [potemkin :refer [import-vars]]
+            [fermor.protocols :refer [-out-edges -in-edges traversed-forward -label -unwrap]]
+            fermor.graph
+            fermor.path)
+  (:import clojure.lang.IMeta
+           (fermor.protocols TraversalDirection Wrappable)))
 
-(defn m
-  "Preserve metadata"
-  [r r']
-  (if (instance? IMeta r)
-    (with-meta r' (meta r))
-    r'))
-
-(defn like
-  "Preserve metadata"
-  [r e]
-  (if (instance? IMeta r)
-    (with-meta [e] (meta r))
-    [e]))
-
-;; The standard arity versions of clojure.core's standard seq manipulation functions, but metadata-preserving:
-
-(defn distinct [r]
-  (m r (clojure.core/distinct r)))
-
-(defn mapcat [f r]
-  (m r (clojure.core/mapcat f r)))
-
-(defn map [f r]
-  (m r (clojure.core/map f r)))
-
-(defn mapv [f r]
-  (m r (clojure.core/mapv f r)))
-
-(defn keep [f r]
-  (m r (clojure.core/keep f r)))
-
-(defn filter [f r]
-  (m r (clojure.core/filter f r)))
-
-(defn remove [f r]
-  (m r (clojure.core/remove f r)))
-
-(defn take [n r]
-  (m r (clojure.core/take n r)))
-
-(defn take-nth [r]
-  (m r (clojure.core/take-nth r)))
-
-(defn take-last [r]
-  (m r (clojure.core/take-last r)))
-
-(defn take-while [pred r]
-  (m r (clojure.core/take-while pred r)))
-
-(defn drop [n r]
-  (m r (clojure.core/drop n r)))
-
-(defn drop-last [r]
-  (m r (clojure.core/drop-last r)))
-
-(defn drop-while [pred r]
-  (m r (clojure.core/drop-while pred r)))
-
-(defn sort-by [f r]
-  (m r (clojure.core/sort-by f r)))
-
-(defn sort [r]
-  (m r (clojure.core/sort r)))
-
-(defn shuffle [r]
-  (m r (clojure.core/shuffle r)))
-
-(defn reverse [r]
-  (m r (clojure.core/reverse r)))
-
-(defn dedupe [r]
-  (m r (clojure.core/dedupe r)))
-
-(defn random-sample [prob r]
-  (m r (clojure.core/random-sample prob r)))
-
-(defn replace [smap r]
-  (m r (clojure.core/replace smap r)))
-
-(defn rest [r]
-  (m r (clojure.core/rest r)))
-
-(defn butlast [r]
-  (m r (clojure.core/butlast r)))
-
-
-;; for sorted sets:
-
-(defn sorted-set [r]
-  (m r (clojure.core/sorted-set r)))
-
-(defn sorted-set-by [comparator r]
-  (m r (clojure.core/sorted-set comparator r)))
-
-(defn subseq-route
-  "Like subseq except the sorted set is the last argument"
-  ([test key r]
-   (assert (instance? clojure.lang.Sorted r))
-   (m r (subseq r test key)))
-  ([start-test start-key end-test end-key r]
-   (assert (instance? clojure.lang.Sorted r))
-   (m r (subseq r start-test start-key end-test end-key))))
-
-(defn rsubseq-route
-  "Like rsubseq except the sorted set is the last argument"
-  ([test key r]
-   (assert (instance? clojure.lang.Sorted r))
-   (m r (rsubseq r test key)))
-  ([start-test start-key end-test end-key r]
-   (assert (instance? clojure.lang.Sorted r))
-   (m r (rsubseq r start-test start-key end-test end-key))))
-
-;;
+(import-vars (fermor.protocols set-config!
+                               ;; Predicates
+                               graph? vertex? edge? element?
+                               ;; Graph
+                               graph get-vertex
+                               ;; MutableGraph
+                               add-vertices add-vertex add-edge add-edges set-property
+                               ;; Element
+                               element-id get-property
+                               ;; Edge
+                               out-vertex in-vertex
+                               ;; Path
+                               reverse-path)
+             ;; Bifurcan Graph
+             (fermor.graph linear forked dag-edge digraph-edge undirected-edge build-graph
+                           ;; read printed graph elements
+                           v e-> e<-)
+             ;; Path
+             (fermor.path with-path path? path no-path no-path! cyclic-path?))
 
 (defn ensure-seq
   "Returns either nil or something sequential."
   [x]
   (if (or (nil? x) (sequential? x))
     x
-    (m x [x])))
+    [x]))
 
-(defn- route-graph [r]
-  (or (:graph (meta r)) #_(get-graph (first r))))
+(defn unwrap [e]
+  (if (satisfies? Wrappable e)
+    (-unwrap e)
+    e))
+
+(defn label [e]
+  (-label e))
+
+(defn out-edges
+  ([v] (-out-edges v))
+  ([v labels] (-out-edges v labels)))
+
+(defn in-edges
+  ([v] (-in-edges v))
+  ([v labels] (-in-edges v labels)))
+
+(defn- fast-traversal
+  "Requires that all vertices are from the same graph to work."
+  ([traversal labels r]
+   (lazy-seq
+    (let [r (ensure-seq r)]
+      ;; (let [labels (-prepare-labels (route-graph r) labels)]
+      (map #(traversal % nil labels) r))))
+  ([f traversal labels r]
+   (lazy-seq
+    (let [r (ensure-seq r)]
+      ;; (let [labels (-prepare-labels (route-graph r) labels)]
+      (map #(f (traversal % nil labels)) r)))))
+
+
+(defn in-e*
+  "Returns a lazy seq of lazy seqs of edges.
+
+  Each entry represents the edges for a single vertex. If a vertex has no edges, its empty seq will still be included.
+
+  If f is given, it is executed against the edges for each vertex."
+  ([r]
+   (cond
+     (vertex? r) [(-in-edges r)]
+     (nil? r) nil
+     :else (map -in-edges r)))
+  ([labels r]
+   (cond
+     (vertex? r) [(-in-edges r (ensure-seq labels))]
+     (nil? r) nil
+     :else (fast-traversal -in-edges (ensure-seq labels) r)))
+  ([f labels r]
+   (cond
+     (vertex? r) [(f (-in-edges r (ensure-seq labels)))]
+     (nil? r) nil
+     :else (fast-traversal f -in-edges (ensure-seq labels) r))))
+
+(defn in-e
+  "Returns a lazy seq of edges.
+
+  If f is given, it is executed once for the edges of each vertex"
+  ([r] (apply concat (in-e* r)))
+  ([labels r]
+   (apply concat (in-e* labels r)))
+  ([f labels r]
+   (apply concat (in-e* f labels r))))
+
+(defn out-e*
+  "Returns a lazy seq of lazy seqs of edges.
+
+  Each entry represents the edges for a single vertex. If a vertex has no edges, its empty seq will still be included.
+
+  If f is given, it is executed against the edges for each vertex."
+  ([r]
+   (cond
+     (vertex? r) [(-out-edges r)]
+     (nil? r) nil
+     :else (map -out-edges r)))
+  ([labels r]
+   (cond
+     (vertex? r) [(-out-edges r (ensure-seq labels))]
+     (nil? r) nil
+     :else (fast-traversal -out-edges (ensure-seq labels) r)))
+  ([f labels r]
+   (cond
+     (vertex? r) [(f (-out-edges r (ensure-seq labels)))]
+     (nil? r) nil
+     :else (fast-traversal f -out-edges (ensure-seq labels) r))))
+
+(defn out-e
+  "Returns a lazy seq of edges.
+
+  If f is given, it is executed once for the edges of each vertex"
+  ([r] (apply concat (out-e* r)))
+  ([labels r]
+   (apply concat (out-e* labels r)))
+  ([f labels r]
+   (apply concat (out-e* f labels r))))
+
+
+(defn both-e*
+  "Returns a lazy seq of lazy seqs of edges.
+
+  Each entry represents the edges for a single vertex. If a vertex has no edges, its empty seq will still be included.
+
+  If f is given, it is executed against the edges for each vertex."
+  ([r]
+   (cond
+     (vertex? r) [(concat (-in-edges r) (-out-edges r))]
+     (nil? r) nil
+     :else
+     (map (fn [v] (concat (-in-edges v) (-out-edges v)))
+          r)))
+  ([labels r]
+   (cond
+     (vertex? r)
+     (let [labels (ensure-seq labels)]
+       [(concat (-in-edges r labels) (-out-edges r labels))])
+     (nil? r) nil
+     :else
+     (fast-traversal (fn [v _ l] (concat (-in-edges v nil l) (-out-edges v nil l)))
+                     (ensure-seq labels)
+                     r)))
+  ([f labels r]
+   (let [labels (ensure-seq labels)]
+     (cond
+       (vertex? r) [(f (concat (-in-edges r labels) (-out-edges r labels)))]
+       (nil? r) nil
+       :else
+       (fast-traversal f
+                       (fn [v _ l] (concat (-in-edges v nil l) (-out-edges v nil l)))
+                       labels
+                       r)))))
+
+(defn both-e
+  "Returns a lazy seq of edges.
+
+  If f is given, it is executed once for the edges of each vertex"
+  ([r] (apply concat (both-e* (ensure-seq r))))
+  ([labels r]
+   (apply concat (both-e* labels (ensure-seq r))))
+  ([f labels r]
+   (apply concat (both-e* f labels (ensure-seq r)))))
+
+(defn out-v
+  "Returns a lazy seq of vertices out of a collection of edges."
+  [r]
+  (cond
+    (edge? r) [(out-vertex r)]
+    (nil? r) nil
+    :else (map out-vertex (ensure-seq r))))
+
+(defn in-v
+  "Returns a lazy seq of vertices in to a collection of edges."
+  [r]
+  (cond
+    (edge? r) [(in-vertex r)]
+    (nil? r) nil
+    :else (map in-vertex (ensure-seq r))))
+
+(defn in*
+  "Returns a lazy seq of lazy seqs of vertices with edges pointing in to this vertex.
+
+  If f is given, it is called once for each collection of vertices related to a single vertex in the route."
+  ([r]
+   (->> r in-e* (map out-v)))
+  ([labels r]
+   (in-e* out-v labels r))
+  ([labels f r]
+   (in-e* #(f (out-v %)) labels r)))
+
+(defn out*
+  "Returns a lazy seq of lazy seqs of vertices with edges pointing out of this vertex.
+
+  If f is given, it is called once for each collection of vertices related to a single vertex in the route."
+  ([r]
+   (->> r out-e* (map in-v)))
+  ([labels r]
+   (out-e* in-v labels r))
+  ([labels f r]
+   (out-e* #(f (in-v %)) labels r)))
+
+(defn in
+  "Returns a lazy seq of vertices with edges pointing in to this vertex "
+  ([r] (apply concat (in* r)))
+  ([labels r] (apply concat (in* labels r)))
+  ([labels f r] (apply concat (in* labels f r))))
+
+(defn out
+  "Returns a lazy seq of vertices with edges pointing out of this vertex "
+  ([r] (apply concat (out* r)))
+  ([labels r] (apply concat (out* labels r)))
+  ([labels f r] (apply concat (out* labels f r))))
+
+(defn in-sorted
+  "Like in, but use sort-by-f to sort the elements attached to each vertex before including them in the overall collection."
+  [labels sort-by-f r]
+  (in labels #(sort-by sort-by-f %) r))
+
+(defn out-sorted
+  "Like out, but use sort-by-f to sort the elements attached to each vertex before including them in the overall collection."
+  [labels sort-by-f r]
+  (out labels #(sort-by sort-by-f %) r))
+
+;; TraversalDirection methods
+
+(defn ->? [e]
+  (if (satisfies? TraversalDirection e)
+    (traversed-forward e)
+    (condition :traversal-direction/unknown e (default true))))
+
+(defn <-? [e]
+  (not (->? e)))
+
+(defn go-back [e]
+  (if (->? e) (out-v e) (in-v e)))
+
+(defn go-on [e]
+  (if (->? e) (in-v e) (out-v e)))
+
+(defn other-v [r]
+  (map go-on r))
+
+(defn same-v [r]
+  (map go-back r))
+
+;; for sorted sets:
+
+(defn subseq-route
+  "Like subseq except the sorted set is the last argument"
+  ([test key r]
+   (assert (instance? clojure.lang.Sorted r))
+   (subseq r test key))
+  ([start-test start-key end-test end-key r]
+   (assert (instance? clojure.lang.Sorted r))
+   (subseq r start-test start-key end-test end-key)))
+
+(defn rsubseq-route
+  "Like rsubseq except the sorted set is the last argument"
+  ([test key r]
+   (assert (instance? clojure.lang.Sorted r))
+   (rsubseq r test key))
+  ([start-test start-key end-test end-key r]
+   (assert (instance? clojure.lang.Sorted r))
+   (rsubseq r start-test start-key end-test end-key)))
+
+;;
+
+;; (defn- route-graph [r]
+;;   (or (:graph (meta r)) #_(get-graph (first r))))
 
 (defn fast-sort-by
   "Works like sort-by but creates an intermediate collection so that f is only called once per element.
@@ -137,10 +286,9 @@
    Much faster if f has any cost at all."
   [f coll]
   (->> coll
-       (clojure.core/map (juxt f identity))
-       (clojure.core/sort-by #(nth % 0))
-       (map #(nth % 1))
-       (m coll)))
+       (map (juxt f identity))
+       (sort-by #(nth % 0))
+       (map #(nth % 1))))
 
 (defn group-siblings
   "For efficiently traversing through relationships like
@@ -156,9 +304,9 @@
              (lazy-seq
                (cons (->> v
                           get-siblings
-                          (clojure.core/filter #(not= v %)))
+                          (filter #(not= v %)))
                      (sibling-seq vs))))]
-     (m r (sibling-seq r))))
+     (sibling-seq r)))
   ([to-parent from-parent r]
    (group-siblings (comp from-parent to-parent) r)))
 
@@ -203,17 +351,17 @@
 (defn gather
   "Collect all results into a vector containing one collection."
   ([r] (gather [] r))
-  ([coll r] (m r [(into coll r)])))
+  ([coll r] [(into coll r)]))
 
 (defn spread
   "Turn a collection of collections back into a single lazy stream. See also: merge-round-robin."
   [r]
-  (m r (apply concat r)))
+  (apply concat r))
 
 (defn join
   "Turn a collection of collections back into a single lazy stream. See also: merge-round-robin."
   [r]
-  (m r (apply concat r)))
+  (apply concat r))
 
 (defn lookahead
   "Ensure that the function produces a collection of at least one item.
@@ -226,13 +374,13 @@
   ([{:keys [min max]} f r]
    (cond
      (and min max)
-     (filter #(<= min (count (clojure.core/take (inc max) (f %))) max)
+     (filter #(<= min (count (take (inc max) (f %))) max)
              (ensure-seq r))
      min
-     (filter #(= min (count (clojure.core/take min (f %))))
+     (filter #(= min (count (take min (f %))))
              (ensure-seq r))
      max
-     (filter #(<= (count (clojure.core/take (inc max) (f %))) max)
+     (filter #(<= (count (take (inc max) (f %))) max)
              (ensure-seq r))
      :else
      r)))
@@ -250,13 +398,13 @@
   ([{:keys [min max]} f e]
    (cond
      (and min max)
-     (when (<= min (count (clojure.core/take (inc max) (f e))) max)
+     (when (<= min (count (take (inc max) (f e))) max)
        e)
      min
-     (when (= min (count (clojure.core/take min (f e))))
+     (when (= min (count (take min (f e))))
        e)
      max
-     (when (<= (count (clojure.core/take (inc max) (f e))) max)
+     (when (<= (count (take (inc max) (f e))) max)
        e)
      :else
      e)))
@@ -273,13 +421,13 @@
   ([{:keys [min max]} f r]
    (cond
      (and min max)
-     (filter #(not (<= min (count (clojure.core/take (inc max) (f %))) max))
+     (filter #(not (<= min (count (take (inc max) (f %))) max))
              (ensure-seq r))
      min
-     (filter #(not (= min (count (clojure.core/take min (f %)))))
+     (filter #(not (= min (count (take min (f %)))))
              (ensure-seq r))
      max
-     (filter #(not (<= (count (clojure.core/take (inc max) (f %))) max))
+     (filter #(not (<= (count (take (inc max) (f %))) max))
              (ensure-seq r))
      :else
      r)))
@@ -293,12 +441,12 @@
 
     fs: a collection of functions (fn [r]), each returning a collection or nil. Each will be called with the same starting route."
   [fs r]
-  (m r (clojure.core/mapv (fn [f] (f r)) fs)))
+  (mapv (fn [f] (f r)) fs))
 
 (defn merge-exhaustive
   "Merge a set of sequnces (or branches), including the full contents of each branch in order from first to last."
   [r]
-  (m r (apply concat r)))
+  (apply concat r))
 
 (defn merge-round-robin
   "Merge a set of sequences (or branches), taking one chunk from each sequence in turn until all sequences are exhausted.
@@ -306,26 +454,26 @@
    rs must be a vector."
   [rs]
   (let [rs (vec rs)]
-    (m rs (lazy-seq
-           (let [r (seq (first rs))
-                 rs (subvec rs 1)]
-             (if (seq rs)
-               (if (chunked-seq? r)
-                 (chunk-cons (chunk-first r)
-                             (let [r (chunk-next r)]
-                               (if r
-                                 (merge-round-robin (conj rs r))
-                                 (merge-round-robin rs))))
-                 (let [b (chunk-buffer 32)
-                       r (loop [i 0 [x & r] r]
-                           (chunk-append b x)
-                           (cond (or (= 32 i) (chunked-seq? (seq r))) r
-                                 r (recur (inc i) r)))]
-                   (chunk-cons (chunk b)
-                               (if r
-                                 (merge-round-robin (conj rs r))
-                                 (merge-round-robin rs)))))
-               r))))))
+    (lazy-seq
+     (let [r (seq (first rs))
+           rs (subvec rs 1)]
+       (if (seq rs)
+         (if (chunked-seq? r)
+           (chunk-cons (chunk-first r)
+                       (let [r (chunk-next r)]
+                         (if r
+                           (merge-round-robin (conj rs r))
+                           (merge-round-robin rs))))
+           (let [b (chunk-buffer 32)
+                 r (loop [i 0 [x & r] r]
+                     (chunk-append b x)
+                     (cond (or (= 32 i) (chunked-seq? (seq r))) r
+                           r (recur (inc i) r)))]
+             (chunk-cons (chunk b)
+                         (if r
+                           (merge-round-robin (conj rs r))
+                           (merge-round-robin rs)))))
+         r)))))
 
 (deftype Cons [first tail])
 (deftype Concat [head tail])
@@ -600,9 +748,9 @@
     Cycles that are included in the results can be handled outside descend because the results produced are lazy. See
     prevent-cycles or no-cycles! below."
   ([path children coll]
-   (m coll (lazy-seq (extrude (*descend path children coll)))))
+   (lazy-seq (extrude (*descend path children coll))))
   ([path control children coll]
-   (m coll (lazy-seq (extrude (*descend path control children coll *no-result-interval* 0))))))
+   (lazy-seq (extrude (*descend path control children coll *no-result-interval* 0)))))
 
 (defn descents
   "Descents is a variant of descend which returns the path that entire descent path as a vector rather than just the resulting element.
@@ -611,9 +759,9 @@
 
    See also: all-paths, deepest-paths"
   ([path children coll]
-   (m coll (lazy-seq (extrude (*descents path children coll)))))
+   (lazy-seq (extrude (*descents path children coll))))
   ([path control children coll]
-   (m coll (lazy-seq (extrude (*descents path control children coll *no-result-interval* 0))))))
+   (lazy-seq (extrude (*descents path control children coll *no-result-interval* 0)))))
 
 (defn all
   "Produces a lazy sequence of every element in the route and all of their children."
@@ -672,16 +820,16 @@
    (distinct-in {:update true} seen-atom r))
   ([{:keys [update] :or {update true}} seen-atom r]
    {:pre [(instance? clojure.lang.Atom seen-atom)]}
-   (m r (let [step (fn step [xs]
-                     (lazy-seq
-                      ((fn [[f :as xs]]
-                         (when-let [s (seq xs)]
-                           (if (contains? @seen-atom f)
-                             (recur (clojure.core/rest s))
-                             (do (when update (swap! seen-atom conj f))
-                                 (cons f (step (clojure.core/rest s)))))))
-                       xs)))]
-          (step r)))))
+   (let [step (fn step [xs]
+                (lazy-seq
+                 ((fn [[f :as xs]]
+                    (when-let [s (seq xs)]
+                      (if (contains? @seen-atom f)
+                        (recur (rest s))
+                        (do (when update (swap! seen-atom conj f))
+                            (cons f (step (rest s)))))))
+                  xs)))]
+     (step r))))
 
 (defn no-cycles!
   "Like prevent-cycles, but raise an :on-cycle condition (which by default raises an ex-info) if a cycle is encountered.
@@ -696,7 +844,7 @@
                    ;; (or (vertex? x)
                    ;;     ...
                    (if (@seen x)
-                     (condition :on-cycle x (h/error "Cycle encountered" {:vertex x}))
+                     (condition :on-cycle x (error "Cycle encountered" {:vertex x}))
                      (do (swap! seen conj x) true)))
                  r))))
 
@@ -717,8 +865,8 @@
       => (1 2 6 7 8 9)"
   [steps coll]
   (when (seq steps)
-    (m coll (lazy-seq
-             (take-drop (clojure.core/rest steps) (clojure.core/drop (first steps) coll))))))
+    (lazy-seq
+     (take-drop (rest steps) (drop (first steps) coll)))))
 
 (defn take-drop
   "Alternatively take and drop chunks of the given size from the collection.
@@ -728,18 +876,14 @@
       => (0 3 4 5)"
   [steps coll]
   (when (seq steps)
-    (m coll (lazy-seq
-             (concat (clojure.core/take (first steps) coll)
-                     (drop-take (clojure.core/rest steps) (clojure.core/drop (first steps) coll)))))))
+    (lazy-seq
+     (concat (take (first steps) coll)
+             (drop-take (rest steps) (drop (first steps) coll))))))
 
 (defmacro f->>
   "Returns a function wrapping the chained methods."
   [& forms]
   `(fn [r#]
-     (->> r# ~@forms)))
+     (->> r# ensure-seq ~@forms)))
 
-(defmacro f-$>>
-  "Returns a function wrapping the chained methods, but inserting (as-route g) at the start of the chain."
-  [g & forms]
-  `(f->> (fermor.bifurcan/as-route ~g)
-         ~@forms))
+
