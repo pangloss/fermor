@@ -41,8 +41,12 @@
 (defmethod simple-dispatch KindId [o]
   (print-method o *out*))
 
+(defprotocol Kind
+  (kind [v]))
+
 (defprotocol Graph
-  (get-vertex [g id] "Find a vertex by ID. See also parse-vertex-id."))
+  (all-vertices [g])
+  (get-vertex [g id] [g kind id] "Find a vertex by ID. See also parse-vertex-id."))
 
 (defprotocol MutableGraph
   (add-vertices [g id-property-pairs]

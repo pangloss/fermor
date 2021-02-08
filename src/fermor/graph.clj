@@ -164,6 +164,8 @@
    :add-vertex #'-add-vertex
    :set-property #'-add-vertex})
 
+(declare edge-graphs)
+
 (deftype ForkedGraph [^IMap edges ^IMap properties settings metadata]
   Object
   (equals [a b] (graph-equality a (-unwrap b)))
@@ -197,6 +199,12 @@
     (->ForkedGraph (.put edges label edge) properties settings nil))
 
   Graph
+  (all-vertices [g]
+    (->> (edge-graphs g)
+         (map #(.vertices (val %)))
+         (apply concat)
+         distinct
+         (map #(->V g % nil nil))))
   (get-vertex [g id]
     (->V g id nil nil))
 
@@ -243,7 +251,7 @@
                          (= property (get-property b))
                          true))))
 
-  (hashCode [e] (hash-combine label (hash-combine out-v in-v)))
+  (hashCode [e] (hash-combine (hash label) (hash-combine (hash out-v) (hash in-v))))
 
   clojure.lang.IObj
   (withMeta [o m]
@@ -260,6 +268,11 @@
   IPropertyCache
   (_getProperty ^java.util.Optional [e] property)
   (_setProperty [e ^java.util.Optional p] (set! property p) e)
+
+  Element
+  (element-id [e] nil)
+  (get-graph [e] (get-graph out-v))
+  (get-property [e] (-get-edge-property e))
 
   Edge
   (-label [e] label)
@@ -285,40 +298,6 @@
 ;; FIXME: validate whether using extend imposes a performance penalty vs implementation within the deftype.
 ;; the reason to use extend is it is easier to redefine the instance methods vs direct implementation within the type.
 ;; Most likely this turns into a TODO: integrate all `extend` use back into the defining type.
-(extend E
-  Element
-  {:element-id (constantly nil)
-   :get-graph (fn get-graph [^E e] (get-graph (.out_v e)))
-   :get-property #'-get-edge-property})
-
-(defmethod print-method E [^E e ^java.io.Writer w]
-  (if *compact-edge-printing*
-    (if (traversed-forward e)
-      (do
-        (.write w "-")
-        (print-method (.label e) w)
-        (.write w "->"))
-      (do
-        (.write w "<-")
-        (print-method (.label e) w)
-        (.write w "-")))
-    (do
-      (if (traversed-forward e)
-        (.write w "(e-> ")
-        (.write w "(e<- "))
-      (print-method (element-id (.out_v e)) w)
-      (.write w " ")
-      (print-method (.label e) w)
-      (when-let [p (get-property e)]
-        (.write w " [")
-        (print-method p w)
-        (.write w "]"))
-      (.write w " ")
-      (print-method (element-id (.in_v e)) w)
-      (.write w ")"))))
-
-(defmethod simple-dispatch E [o]
-  (print-method o *out*))
 
 (deftype V [^ForkedGraph graph id ^:unsynchronized-mutable ^java.util.Optional property metadata]
   Object
@@ -368,7 +347,7 @@
   ([^IEdgeGraphs g]
    (edge-graphs g (labels g)))
   ([^IEdgeGraphs g labels]
-   (map (juxt identity #(edge-graph g %)) labels)))
+   (into {} (map (juxt identity #(edge-graph g %)) labels))))
 
 (defn edges-with-label?
   ;; FIXME : is this correct in both directions?
@@ -415,19 +394,46 @@
   {:-in-edges --in-edges
    :-out-edges --out-edges})
 
-(defmethod print-method V [e ^java.io.Writer w]
-  (if *compact-vertex-printing*
+(defn print-edge [as-out as-in ^E e ^java.io.Writer w]
+  (if *compact-edge-printing*
+    (if (traversed-forward e)
+      (do
+        (.write w "-")
+        (print-method (.label e) w)
+        (.write w "->"))
+      (do
+        (.write w "<-")
+        (print-method (.label e) w)
+        (.write w "-")))
     (do
-      (.write w "(v ")
-      (print-method (.id ^V e) w)
-      (.write w ")"))
-    (do
-      (.write w "(v ")
-      (print-method (.id ^V e) w)
+      (if (traversed-forward e)
+        (.write w as-out)
+        (.write w as-in))
+      (print-method (element-id (.out_v e)) w)
+      (.write w " ")
+      (print-method (.label e) w)
       (when-let [p (get-property e)]
-        (.write w " ")
-        (print-method p w))
+        (.write w " [")
+        (print-method p w)
+        (.write w "]"))
+      (.write w " ")
+      (print-method (element-id (.in_v e)) w)
       (.write w ")"))))
+
+(defmethod print-method E [^E e ^java.io.Writer w]
+  (print-edge "(e-> " "(e<- " e w))
+
+(defmethod simple-dispatch E [o]
+  (print-method o *out*))
+
+(defmethod print-method V [e ^java.io.Writer w]
+  (.write w "(v ")
+  (print-method (.id ^V e) w)
+  (when-not *compact-vertex-printing*
+    (when-let [p (get-property e)]
+      (.write w " ")
+      (print-method p w)))
+  (.write w ")"))
 
 (defmethod simple-dispatch V [o]
   (print-method o *out*))
@@ -472,15 +478,7 @@
        (add-vertices (partition 2 1 (range 1000)))
        (add-edge :boo 4 999 {:a 1})
        forked
-       (get-vertex 4)
-       (p/with-path)
-       (->>
-        in
-        in in
-        out out out out)))
+       with-
+       (get-vertex 4) out out* (->> (map in))))
 
  ,)
-
-(comment
-
-  ,)

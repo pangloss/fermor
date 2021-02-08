@@ -3,6 +3,7 @@
             [potemkin :refer [import-vars]]
             [fermor.protocols :refer [-out-edges -in-edges traversed-forward -label -unwrap]]
             fermor.graph
+            fermor.kind-graph
             fermor.path)
   (:import clojure.lang.IMeta
            (fermor.protocols TraversalDirection Wrappable)))
@@ -11,7 +12,7 @@
                                ;; Predicates
                                graph? vertex? edge? element?
                                ;; Graph
-                               graph get-vertex
+                               graph get-vertex all-vertices
                                ;; MutableGraph
                                add-vertices add-vertex add-edge add-edges set-property
                                ;; Element
@@ -28,7 +29,9 @@
                            ;; read printed graph elements
                            v e-> e<-)
              ;; Path
-             (fermor.path with-path path? path no-path no-path! cyclic-path?))
+             (fermor.path with-path path? path no-path no-path! cyclic-path?)
+             ;; Kind Graph
+             (fermor.kind-graph V E-> E<-))
 
 (defn ensure-seq
   "Returns either nil or something sequential."
@@ -37,21 +40,53 @@
     x
     [x]))
 
-(defn unwrap [e]
+(defn unwrap
+  "Recursively unwrap any element or just return the input if it's not wrapped"
+  [e]
   (if (satisfies? Wrappable e)
     (-unwrap e)
     e))
 
-(defn label [e]
+(defn label
+  "This edge label"
+  [e]
   (-label e))
 
 (defn out-edges
+  "Edges pointing out of this vertex"
   ([v] (-out-edges v))
   ([v labels] (-out-edges v labels)))
 
 (defn in-edges
+  "Edges pointing in to this vertex"
   ([v] (-in-edges v))
   ([v labels] (-in-edges v labels)))
+
+;; TraversalDirection methods
+
+(defn ->?
+  "Returns true if we followed an out-edge to get to this edge."
+  [e]
+  (if (satisfies? fermor.protocols/TraversalDirection e)
+    (traversed-forward e)
+    (condition :traversal-direction/unknown e (default true))))
+
+(defn <-?
+  "Returns true if we followed an in-edge to get to this edge."
+  [e]
+  (not (->? e)))
+
+(defn go-back
+  "Returns the vertex we used to get to this edge"
+  {:see-also ["->?" "go-on" "same-v"]}
+  [e]
+  (if (->? e) (out-vertex e) (in-vertex e)))
+
+(defn go-on
+  "Returns the vertex we did not use to get to this edge"
+  {:see-also ["->?" "go-back" "other-v"]}
+  [e]
+  (if (->? e) (in-vertex e) (out-vertex e)))
 
 (defn- fast-traversal
   "Requires that all vertices are from the same graph to work."
@@ -65,7 +100,6 @@
     (let [r (ensure-seq r)]
       ;; (let [labels (-prepare-labels (route-graph r) labels)]
       (map #(f (traversal % nil labels)) r)))))
-
 
 (defn in-e*
   "Returns a lazy seq of lazy seqs of edges.
@@ -131,7 +165,6 @@
   ([f labels r]
    (apply concat (out-e* f labels r))))
 
-
 (defn both-e*
   "Returns a lazy seq of lazy seqs of edges.
 
@@ -192,6 +225,24 @@
     (nil? r) nil
     :else (map in-vertex (ensure-seq r))))
 
+(defn other-v
+  "Returns a lazy seq of vertices on the other side of the edge that we came from."
+  [r]
+  (map go-on r))
+
+(defn same-v
+  "Returns a lazy seq of vertices on the same side of the edge that we came from."
+  [r]
+  (map go-back r))
+
+(defn both-v
+  "Returns a lazy seq of vertices out of a collection of edges."
+  [r]
+  (cond
+    (edge? r) [(in-vertex r) (out-vertex r)]
+    (nil? r) nil
+    :else (mapcat #(vector (in-vertex %) (out-vertex %)) (ensure-seq r))))
+
 (defn in*
   "Returns a lazy seq of lazy seqs of vertices with edges pointing in to this vertex.
 
@@ -201,7 +252,7 @@
   ([labels r]
    (in-e* out-v labels r))
   ([labels f r]
-   (in-e* #(f (out-v %)) labels r)))
+   (in-e* (comp f out-v) labels r)))
 
 (defn out*
   "Returns a lazy seq of lazy seqs of vertices with edges pointing out of this vertex.
@@ -212,7 +263,19 @@
   ([labels r]
    (out-e* in-v labels r))
   ([labels f r]
-   (out-e* #(f (in-v %)) labels r)))
+   (out-e* (comp f in-v) labels r)))
+
+(defn both*
+  "Returns a lazy seq of lazy seqs of vertices with edges pointing both in and out of this vertex "
+  ([r] (->> r both-e* (map other-v)))
+  ([labels r] (both-e* go-on labels r))
+  ([labels f r] (both-e* (comp f go-on) labels r)))
+
+(defn both
+  "Returns a lazy seq of vertices with edges pointing both in and out of this vertex "
+  ([r] (apply concat (both* r)))
+  ([labels r] (apply concat (both* labels r)))
+  ([labels f r] (apply concat (both* labels f r))))
 
 (defn in
   "Returns a lazy seq of vertices with edges pointing in to this vertex "
@@ -236,32 +299,15 @@
   [labels sort-by-f r]
   (out labels #(sort-by sort-by-f %) r))
 
-;; TraversalDirection methods
-
-(defn ->? [e]
-  (if (satisfies? TraversalDirection e)
-    (traversed-forward e)
-    (condition :traversal-direction/unknown e (default true))))
-
-(defn <-? [e]
-  (not (->? e)))
-
-(defn go-back [e]
-  (if (->? e) (out-v e) (in-v e)))
-
-(defn go-on [e]
-  (if (->? e) (in-v e) (out-v e)))
-
-(defn other-v [r]
-  (map go-on r))
-
-(defn same-v [r]
-  (map go-back r))
-
-(defn properties [r]
+(defn properties
+  "Return the property from each element"
+  [r]
   (map get-property r))
 
-(defn has-property [r k v]
+(defn has-property
+  "The property must be indexable, and if it is, returns true if the property
+  contains the given key value pair."
+  [r k v]
   (filter (fn [e] (= v (get (get-property e) k))) r))
 
 ;; for sorted sets:
@@ -452,37 +498,44 @@
   [fs r]
   (mapv (fn [f] (f r)) fs))
 
+(defn keyed-branch [pairs r]
+  (reduce (fn [m [k f]] (assoc m k (f r))) {} (partition 2 pairs)))
+
 (defn merge-exhaustive
   "Merge a set of sequnces (or branches), including the full contents of each branch in order from first to last."
   [r]
-  (apply concat r))
+  (if (map? r)
+    (apply concat (vals r))
+    (apply concat r)))
 
 (defn merge-round-robin
   "Merge a set of sequences (or branches), taking one chunk from each sequence in turn until all sequences are exhausted.
 
    rs must be a vector."
   [rs]
-  (let [rs (vec rs)]
-    (lazy-seq
-     (let [r (seq (first rs))
-           rs (subvec rs 1)]
-       (if (seq rs)
-         (if (chunked-seq? r)
-           (chunk-cons (chunk-first r)
-                       (let [r (chunk-next r)]
-                         (if r
-                           (merge-round-robin (conj rs r))
-                           (merge-round-robin rs))))
-           (let [b (chunk-buffer 32)
-                 r (loop [i 0 [x & r] r]
-                     (chunk-append b x)
-                     (cond (or (= 32 i) (chunked-seq? (seq r))) r
-                           r (recur (inc i) r)))]
-             (chunk-cons (chunk b)
-                         (if r
-                           (merge-round-robin (conj rs r))
-                           (merge-round-robin rs)))))
-         r)))))
+  (if (map? rs)
+    (merge-round-robin (vals rs))
+    (let [rs (vec rs)]
+      (lazy-seq
+       (let [r (seq (first rs))
+             rs (subvec rs 1)]
+         (if (seq rs)
+           (if (chunked-seq? r)
+             (chunk-cons (chunk-first r)
+                         (let [r (chunk-next r)]
+                           (if r
+                             (merge-round-robin (conj rs r))
+                             (merge-round-robin rs))))
+             (let [b (chunk-buffer 32)
+                   r (loop [i 0 [x & r] r]
+                       (chunk-append b x)
+                       (cond (or (= 32 i) (chunked-seq? (seq r))) r
+                             r (recur (inc i) r)))]
+               (chunk-cons (chunk b)
+                           (if r
+                             (merge-round-robin (conj rs r))
+                             (merge-round-robin rs)))))
+           r))))))
 
 (deftype Cons [first tail])
 (deftype Concat [head tail])
@@ -762,7 +815,8 @@
    (lazy-seq (extrude (*descend path control children coll *no-result-interval* 0)))))
 
 (defn descents
-  "Descents is a variant of descend which returns the path that entire descent path as a vector rather than just the resulting element.
+  "Descents is a variant of descend which returns the path that entire descent
+  path as a vector rather than just the resulting element.
 
    Please see descend for details. In descents, the initial path is not optional and must be a vector.
 
@@ -841,7 +895,8 @@
      (step r))))
 
 (defn no-cycles!
-  "Like prevent-cycles, but raise an :on-cycle condition (which by default raises an ex-info) if a cycle is encountered.
+  "Like prevent-cycles, but raise an :on-cycle condition (which by default
+  raises an ex-info) if a cycle is encountered.
 
   Return false from :on-cycle to break out of the cycle, return true to continue
   cycling. If you don't handle the :on-cycle condition, an exception will be
@@ -895,4 +950,125 @@
   `(fn [r#]
      (->> r# ensure-seq ~@forms)))
 
+(defmacro ->< [& forms-then-data]
+  (let [forms (butlast forms-then-data)
+        data (last forms-then-data)]
+    `(-> ~data ~@forms)))
 
+(defn pluck [f coll]
+  (first (filter f coll)))
+
+(defn index-by
+  "Return an index of unique items.
+
+  `->key` is a fn that returns a key for each item.
+  `->val` is a fn that returns the value to be indexed by the returned key."
+  ([->key coll]
+   (persistent!
+    (reduce (fn [idx x] (assoc! idx (->key x) x))
+            (transient {}) coll)))
+  ([->key ->val coll]
+   (persistent!
+    (reduce (fn [idx x] (assoc! idx (->key x) (->val x)))
+            (transient {}) coll))))
+
+(defn index-by-multi
+  "Return an index of unique items.
+
+  `->keys` is a fn that returns a vector of keys for each item. The item will be keyed to each returned key individually.
+  `->val` is a fn that returns the value to be indexed by the returned keys."
+  ([->keys coll]
+   (persistent!
+    (reduce (fn [idx x] (reduce (fn [idx k] (assoc! idx k x))
+                                idx
+                                (->keys x)))
+            (transient {}) coll)))
+  ([->keys ->val coll]
+   (persistent!
+    (reduce (fn [idx x]
+              (let [v (->val x)]
+                (reduce (fn [idx k] (assoc! idx k v))
+                        idx
+                        (->keys x))))
+            (transient {})
+            coll))))
+
+(defn group-count
+  "Return a map of {item count-equal-items} or {(f item) count-equal}"
+  ([coll]
+   (persistent!
+    (reduce (fn [r item]
+              (assoc! r item (inc (get r item 0))))
+            (transient {})
+            coll)))
+  ([f coll]
+   (persistent!
+    (reduce (fn [r item]
+              (let [k (f item)]
+                (assoc! r k (inc (get r k 0)))))
+            (transient {})
+            coll))))
+
+(defn sorted-group-count
+  "Return a map of {item count-equal-items} or {(f item) count-equal}"
+  ([coll]
+   (reduce (fn [r item]
+             (assoc r item (inc (get r item 0))))
+           (sorted-map)
+           coll))
+  ([f coll]
+   (reduce (fn [r item]
+             (let [k (f item)]
+               (assoc r k (inc (get r k 0)))))
+           (sorted-map)
+           coll)))
+
+(defn group-by-count
+  "Return a map of {count [all keys with that unique count]}"
+  ([coll]
+   (persistent!
+    (reduce (fn [r [k count]]
+              (assoc! r count (conj (get r count []) k)))
+            (transient {})
+            (group-count coll))))
+  ([f coll]
+   (persistent!
+    (reduce (fn [r [k count]]
+              (assoc! r count (conj (get r count []) k)))
+            (transient {})
+            (group-count f coll)))))
+
+(defn group-by-count>1
+  "Return a map of {count [all keys with that unique count]} where count > 1"
+  ([coll]
+   (persistent!
+    (reduce (fn [r [k count]]
+              (if (= 1 count)
+                r
+                (assoc! r count (conj (get r count []) k))))
+            (transient {})
+            (group-count coll))))
+  ([f coll]
+   (persistent!
+    (reduce (fn [r [k count]]
+              (if (= 1 count)
+                r
+                (assoc! r count (conj (get r count []) k))))
+            (transient {})
+            (group-count f coll)))))
+
+(defn distinct-by
+  "Returns a lazy sequence of the elements of coll with duplicates removed.
+  Returns a stateful transducer when no collection is provided."
+  {:adapted-from 'clojure.core/distinct}
+  ([key coll]
+   (let [step (fn step [xs seen]
+                (lazy-seq
+                 ((fn [[f :as xs] seen]
+                    (when-let [s (seq xs)]
+                      (let [val (key f)]
+                        (if (contains? seen val)
+                          (recur (rest s) seen)
+                          (cons f (step (rest s) (conj seen val)))))))
+                  xs seen)))]
+     (step coll #{}))))
