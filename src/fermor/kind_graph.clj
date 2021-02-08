@@ -69,6 +69,8 @@
   (hashCode [e] (.hashCode graph))
 
   Graph
+  (all-vertices [g]
+    (map ->KVertex (all-vertices graph)))
   (get-vertex [g kind-id]
     (->KVertex (->V (-unwrap g) kind-id nil nil)))
   (get-vertex [g kind id]

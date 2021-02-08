@@ -1,12 +1,14 @@
 (ns fermor.core
   (:require [conditions :refer [condition manage lazy-conditions error default]]
             [potemkin :refer [import-vars]]
+            [flatland.ordered.set :refer [ordered-set]]
             [fermor.protocols :refer [-out-edges -in-edges traversed-forward -label -unwrap]]
+            [fermor.descend :refer [*descend *descents extrude]]
             fermor.graph
             fermor.kind-graph
             fermor.path)
   (:import clojure.lang.IMeta
-           (fermor.protocols TraversalDirection Wrappable)))
+           (fermor.protocols TraversalDirection Wrappable KindId)))
 
 (import-vars (fermor.protocols set-config!
                                ;; Predicates
@@ -22,7 +24,7 @@
                                ;; Path
                                reverse-path
                                ;; KindId
-                               id k lookup)
+                               id k kind lookup)
              ;; Bifurcan Graph
              (fermor.graph linear forked dag-edge digraph-edge undirected-edge build-graph
                            vertices-with-edge
@@ -330,11 +332,6 @@
    (assert (instance? clojure.lang.Sorted r))
    (rsubseq r start-test start-key end-test end-key)))
 
-;;
-
-;; (defn- route-graph [r]
-;;   (or (:graph (meta r)) #_(get-graph (first r))))
-
 (defn fast-sort-by
   "Works like sort-by but creates an intermediate collection so that f is only called once per element.
 
@@ -346,7 +343,10 @@
        (map #(nth % 1))))
 
 (defn group-siblings
-  "For efficiently traversing through relationships like
+  "Note the stated use case for this is replaced by the much more elegant
+  `go-on` / `go-back` and related methods.
+
+   For efficiently traversing through relationships like
      (source)-[has-parent]->(parent)<-[has-parent]-(dest)
    even if the parent has multiple children.
 
@@ -354,6 +354,7 @@
 
    get-siblings is a function that given source returns dest.
    to-parent and from-parent are functions that when combined will traverse from source to dest."
+  {:deprecated "pre-release"} ;; deprecated pending finding a real use case.
   ([get-siblings r]
    (letfn [(sibling-seq [[v & [vs]]]
              (lazy-seq
@@ -368,12 +369,16 @@
 (declare join)
 
 (defn siblings
-  "For efficiently traversing through relationships with the same edge direction and label in relation to a parent node
+  "Note the stated use case for this is replaced by the much more elegant
+  `go-on` / `go-back` and related methods.
+
+   For efficiently traversing through relationships with the same edge direction and label in relation to a parent node
      (source)-[has-parent]->(parent)<-[has-parent]-(dest)
    even if the parent has multiple members.
 
    get-siblings is a function that given source returns dest.
    to-parent and from-parent are functions that when combined will traverse from source to dest."
+  {:deprecated "pre-release"} ;; deprecated pending finding a real use case.
   ([get-siblings r]
    (join (group-siblings get-siblings r)))
   ([to-parent from-parent r]
@@ -537,30 +542,6 @@
                              (merge-round-robin rs)))))
            r))))))
 
-(deftype Cons [first tail])
-(deftype Concat [head tail])
-(defrecord NoResult [path ^:long depth])
-
-(defmethod print-method Cons [^Cons v ^java.io.Writer w]
-  (.write w "(Cons ")
-  (print-method (.first v) w)
-  (.write w ", ")
-  (if (.tail v)
-    (.write w (str (class (.tail v))))
-    (.write w "nil"))
-  (.write w ")"))
-
-(defmethod print-method Concat [^Concat v ^java.io.Writer w]
-  (.write w "(Concat ")
-  (if (.head v)
-    (.write w (str (class (.head v))))
-    (.write w "nil"))
-  (.write w ", ")
-  (if (.tail v)
-    (.write w (str (class (.tail v))))
-    (.write w "nil"))
-  (.write w ")"))
-
 ;;                     [emit children siblings reset-path]
 (def emit-and-continue  [true   true   true   false])
 (def emit               [true   false  true   false])
@@ -571,206 +552,35 @@
 (def ignore             [false  false  true   false])
 (def cut                [false  false  false  false])
 
-(defn reset-path [instruction]
+(defn reset-path
+  "Apply this to a control-return-value to turn on path resetting."
+  [instruction]
   (update instruction 3 true))
 
-;; Must be used together with extrude to work around limitation in Clojure lazy-seq concat
-(defn- *descend
-  ([path f coll]
-   (when-let [[e & more] (seq coll)]
-     #(Cons. e
-             (Concat. (*descend (when path (conj path e)) f (ensure-seq (f path e)))
-                      (when more (*descend path f more))))))
-  ([path control f coll ^:long nri ^:long recur-depth] ; nri is no-results-interval
-   (when-let [[e & more] (seq coll)]
-     (let [[emit children siblings reset-path] (control path e)
-           results (when children
-                     (ensure-seq (f path e)))
-           path (when-not (nil? path) (if reset-path [] path))]
-
-       (case [(boolean emit) (boolean children) (boolean siblings)]
-
-         [true true true] ; (:emit-and-loop true :loop-and-emit)
-         #(Cons. e (Concat. (*descend (when path (conj path e)) control f results nri 0)
-                            (*descend path control f more nri 0)))
-
-         [true false true] ; :emit
-         #(Cons. e (*descend path control f more nri 0))
-
-         [true true false] ; (:emit-and-chain :chain-and-emit)
-         #(Cons. e (*descend (when path (conj path e)) control f results nri 0))
-
-         [true false false] ; (:emit-and-cut :cut-and-emit)
-         #(Cons. e nil)
-
-         [false true true] ; :loop
-         (let [more #(Concat. (*descend (when path (conj path e)) control f results nri (inc recur-depth))
-                              (*descend path control f more nri (inc recur-depth)))]
-           (if (= nri (mod recur-depth (inc nri)))
-             #(Cons. (NoResult. path recur-depth) more)
-             more))
-
-         [false true false] ; :chain
-         (if (= nri (mod recur-depth (inc nri)))
-           #(Cons. (NoResult. path recur-depth)
-                   (*descend (when path (conj path e)) control f results nri (inc recur-depth)))
-           (recur (when path (conj path e)) control f results nri (inc recur-depth)))
-
-         [false false true] ; (:ignore false nil)
-         (if (= nri (mod recur-depth (inc nri)))
-           #(Cons. (NoResult. path recur-depth)
-                   (*descend path control f more nri (inc recur-depth)))
-           (recur path control f more nri (inc recur-depth)))
-
-         [false false false]; :cut
-         nil)))))
-
-;; Must be used together with extrude to work around limitation in Clojure lazy-seq concat
-(defn- *descents
-  ([path f coll]
-   (when-let [[e & more] (seq coll)]
-     #(let [e-path (conj path e)]
-        (Cons. e-path
-               (Concat. (*descents e-path f (ensure-seq (f path e)))
-                        (when more (*descents path f more)))))))
-  ([path control f coll ^:long nri ^:long recur-depth] ; nri is no-results-interval
-   (when-let [[e & more] (seq coll)]
-     (let [[emit children siblings reset-path] (control path e)
-           results (when children
-                     (ensure-seq (f path e)))
-           path (if reset-path [] path)
-           e-path (conj path e)]
-
-       (case [(boolean emit) (boolean children) (boolean siblings)]
-
-         [true true true] ; (:emit-and-loop true :loop-and-emit)
-         #(Cons. e-path (Concat. (*descents e-path control f results nri 0)
-                                 (*descents path control f more nri 0)))
-
-         [true false true] ; :emit
-         #(Cons. e-path (*descents path control f more nri 0))
-
-         [true true false] ; (:emit-and-chain :chain-and-emit)
-         #(Cons. e-path (*descents e-path control f results nri 0))
-
-         [true false false] ; (:emit-and-cut :cut-and-emit)
-         #(Cons. e-path nil)
-
-         [false true true] ; :loop
-         (let [more #(Concat. (*descents e-path control f results nri (inc recur-depth))
-                              (*descents path control f more nri (inc recur-depth)))]
-           (if (= nri (mod recur-depth (inc nri)))
-             #(Cons. (NoResult. path recur-depth) more)
-             more))
-
-         [false true false] ; :chain
-         (if (= nri (mod recur-depth (inc nri)))
-           #(Cons. (NoResult. path recur-depth)
-                   (*descents e-path control f results nri (inc recur-depth)))
-           (recur e-path control f results nri (inc recur-depth)))
-
-         [false false true] ; (:ignore false nil)
-         (if (= nri (mod recur-depth (inc nri)))
-           #(Cons. (NoResult. path recur-depth)
-                   (*descents path control f more nri (inc recur-depth)))
-           (recur path control f more nri (inc recur-depth)))
-
-         [false false false] ; :cut
-         nil)))))
-
-
-(defn cut-no-results
-  "A possible resolution to be used by a custom *no-results* function. Stop searching the current element and its siblings."
-  []
-  nil)
-
-(defn continue-no-results
-  "A possible resolution to be used by a custom *no-results* function. For
-   instance to continue searching siblings but not children, call
-   (continue-no-results nil right), or to search children but not siblings, call
-   (continue-no-results down nil)."
-  [down right]
-  (Concat. down right))
-
-(defn value-for-no-results
-  "A possible resolution for *no-results*. Insert a constant value into the
-   result stream and then continue searching."
-  [chk-buffer value down right]
-  (chunk-append chk-buffer value)
-  (Concat. down right))
-
-(defn ->no-results
-  "This function is used to capture the value of *cut-no-results* so that it is
-   not lost when the seq it is used in is returned from the binding context."
-  [^:long cut-no-results]
-  (fn [chk-buffer no-result down right]
-    (if (< (:depth no-result) cut-no-results)
-      (continue-no-results down right)
-      (continue-no-results nil right))))
-
-(defn- *extrude [b x fno-results tails]
-  ; b is always created in the calling method. It is mutable and does not need to be returned.
-  (let [x (if (fn? x) (x) x)]
-    (if x
-      (cond (instance? Cons x)
-            (let [^Cons c x]
-              (let [v (.first c)]
-                (if (instance? NoResult v)
-                  (fno-results b v (.tail c) tails)
-                  (do (chunk-append b (.first c))
-                      (if (= 32 (count b))
-                        (if tails
-                          (Concat. (.tail c) tails)
-                          (.tail c))
-                        (recur b (.tail c) fno-results tails))))))
-            (instance? Concat x)
-            (let [^Concat c x]
-              (let [head (.head c)
-                    tail (.tail c)]
-                (cond head
-                      (recur b head fno-results (if tail
-                                                  (if tails
-                                                    (Concat. tail tails)
-                                                    tail)
-                                                  tails))
-                      tail
-                      (recur b tail fno-results tails)
-                      :else
-                      tails)))
-            :else
-            tails)
-      tails)))
-
-(defonce ^:dynamic ^:long *cut-no-results* 10000000)
-(defonce ^:dynamic ^:long *no-result-interval* 10000)
-(defonce ^:dynamic *no-results* nil)
-
-(defn- extrude
-  ([x]
-   (extrude x (or *no-results* (->no-results *cut-no-results*))))
-  ([x no-results]
-   (lazy-seq
-    (let [b (chunk-buffer 32)
-          conc (*extrude b x no-results nil)]
-      (if conc
-        (chunk-cons (chunk b) (extrude conc no-results))
-        (chunk-cons (chunk b) nil))))))
-
+(def control-return-values
+  {:emit-and-continue  emit-and-continue
+   :emit               emit
+   :emit-and-chain     emit-and-chain
+   :emit-and-cut       emit-and-cut
+   :continue           continue
+   :chain              chain
+   :ignore             ignore
+   :cut                cut})
 
 (defn descend
   "A power-tool for recursively traversing the graph. See also: descents, all, deepest
 
-  The arity 3 version omits the control function. It is like the arity 4 version where the control function
-  always returns :loop-and-emit.
+  The arity 3 version omits the control function. It is like the arity 4 version
+  where the control function always returns :loop-and-emit.
 
   Arguments:
 
-    path: The starting path that will be appended to as the function descends deeper into the graph.
-          Should be either nil or a vector. If nil, path will not be tracked.
-    control: A function that guides the descent. Should be a (fn [path current]). See below for valid return values.
-    children: A function that produces child elements for the current element: Should be a (fn [path current]).
-    coll: The starting collection. Elements in the starting collection will be passed to the control
-          function and may be emitted.
+    `path`: The starting path that will be appended to as the function descends deeper into the graph.
+            Should be either nil or a vector. If nil, path will not be tracked.
+    `control`: A function that guides the descent. Should be a `(fn [path current])`. See below for valid return values.
+    `children`: A function that produces child elements for the current element: Should be a `(fn [path current])`.
+    `coll`: The starting collection. Elements in the starting collection will be passed to the control
+            function and may be emitted.
 
   Table of Valid Control Return Values:
 
@@ -792,23 +602,29 @@
 
    Hidden cycle protection:
 
-     This section describes a failsafe to prevent descend from being caught permanently in a graph cycle that is producing no results. If you expect
-     cycles, you are probably better off looking at the path that is passed to the control and children functions to detect
-     a repeating pattern based on your traversal logic. This function will by default prevent traversing more than
-     *cut-no-results* (10,000,000) levels deep while returning no matching results. Every *no-results-interval* (10,000)
-     child levels, it will call the *no-results* (fn [chk-buffer no-result down right]) function to allow it to
-     produce a resolution or to continue the search. Some standard resolution functions are included:
-     cut-no-results, continue-no-results, and value-for-no-results. Return their return value. You can modify the
-     behavior of this system by binding the following dynamic vars:
+     This section describes a failsafe to prevent descend from being caught
+     permanently in a graph cycle that is producing no results. If you expect
+     cycles, you are probably better off looking at the path that is passed to the
+     control and children functions to detect a repeating pattern based on your
+     traversal logic. This function will by default prevent traversing more than
+     *cut-no-results* (10,000,000) levels deep while returning no matching results.
+     Every *no-results-interval* (10,000) child levels, it will call the
+     *no-results* (fn [chk-buffer no-result down right]) function to allow it to
+     produce a resolution or to continue the search. Some standard resolution
+     functions are included: descend/cut-no-results, descend/continue-no-results, and
+     descend/value-for-no-results. Return their return value. You can modify the behavior
+     of this system by binding the following dynamic vars:
 
-       *cut-no-results*
-       *no-results-interval*
-       *no-results*
+       descend/*cut-no-results*
+       descend/*no-results-interval*
+       descend/*no-results*
 
   Handling cycles:
 
-    Cycles that are included in the results can be handled outside descend because the results produced are lazy. See
-    prevent-cycles or no-cycles! below."
+    Cycles that are included in the results can be handled outside descend
+    because the results produced are lazy. See prevent-cycles or no-cycles!
+    below."
+  {:see-also ["descents" "all" "deepest" "all-paths" "deepest-paths"]}
   ([path children coll]
    (lazy-seq (extrude (*descend path children coll))))
   ([path control children coll]
@@ -818,39 +634,188 @@
   "Descents is a variant of descend which returns the path that entire descent
   path as a vector rather than just the resulting element.
 
-   Please see descend for details. In descents, the initial path is not optional and must be a vector.
-
-   See also: all-paths, deepest-paths"
+   Please see `descend` for details. In descents, the initial path is not optional
+  and must be a vector."
+  {:see-also ["descend" "all" "deepest" "all-paths" "deepest-paths"]}
   ([path children coll]
    (lazy-seq (extrude (*descents path children coll))))
   ([path control children coll]
    (lazy-seq (extrude (*descents path control children coll *no-result-interval* 0)))))
 
+(defn- ev-pred [f1 f2]
+  (fn
+    ([a]
+     (and (f1 a) (f2 a)))
+    ([a b]
+     (and (f1 a b) (f2 a b)))))
+
+(defn- build-all [style control cut-cycles? pred path-pred element-pred f r]
+  (let [paths (when (or cut-cycles? path-pred pred (identical? descents style))
+                (if cut-cycles?
+                  (if (or (fn? pred) (fn? path-pred))
+                    (ordered-set)
+                    #{})
+                  []))
+        depth-pred (when-let [n (cond (nat-int? path-pred) path-pred (nat-int? pred) pred)]
+                     (fn dpred [p] (< (count p) n)))
+        path-pred (if (and path-pred depth-pred)
+                    (ev-pred path-pred depth-pred)
+                    (or path-pred depth-pred))
+        ppe (cond (and (fn? path-pred) element-pred) (fn eppred [path e] (and (path-pred path) (element-pred e)))
+                  (fn? path-pred)                    (fn ppred [path e] (path-pred path))
+                  element-pred                       (fn epred [path e] (element-pred e)))
+        pred (if cut-cycles?
+               (if (fn? pred)
+                 (fn cppred [p e] (and (not (p e)) (pred p e)))
+                 (fn cpred [p e] (not (p e)))))
+        pred (cond (and (fn? pred) ppe) (ev-pred pred ppe)
+                   (fn? pred) pred
+                   ppe ppe)
+        style (if control
+                (partial style paths control)
+                (partial style paths))]
+    (if pred
+      (style (fn fpred1 [path e] (when (pred path e) (f e)))
+             (ensure-seq r))
+      (style (fn fpred2 [path e] (f e))
+             (ensure-seq r)))))
+
 (defn all
-  "Produces a lazy sequence of every element in the route and all of their children."
-  [f r]
-  (descend nil #(f %2) (ensure-seq r)))
+  "Produces a lazy sequence of every element in the route and all of their
+  children. Cuts cycles.
+
+  `pred` is a `(fn [path element])` that returns true to continue iterating.
+
+  `pred` or `path-pred` may be a natural integer, meaning the maximum path
+  length allowed before iterating. Note that the internal path is only the
+  elements seen by the iteration and is not the same as the more complete path
+  produced by `with-path`."
+  ([f r]
+   (build-all descend nil true nil nil nil f r))
+  ([pred f r]
+   (build-all descend nil true pred nil nil f r))
+  ([path-pred element-pred f r]
+   (build-all descend nil true nil path-pred element-pred f r)))
+
+(defn all-with-cycles
+  "Produces a lazy sequence of every element in the route and all of their
+  children. Does not cut cycles.
+
+  See `all` for details on arities."
+  ([f r]
+   (build-all descend nil false nil nil nil f (ensure-seq r)))
+  ([f pred r]
+   (build-all descend nil false pred nil nil f (ensure-seq r)))
+  ([f path-pred el-pred r]
+   (build-all descend nil false nil path-pred el-pred f (ensure-seq r))))
+
+(defn- deepest-control [f] (fn [p e] (if (seq (f e)) continue emit)))
 
 (defn deepest
-  "Produces a lazy sequence of every leaf node reachable by traversing all of the children of every element in the route."
-  [f r]
-  (descend nil
-           (fn [p e] (if (seq (f e)) continue emit))
-           #(f %2)
-           (ensure-seq r)))
+  "Produces a lazy sequence of every leaf node reachable by traversing all of
+  the children of every element in the route. Cuts cycles.
+
+  See `all` for details on arities."
+  ([f r]
+   (build-all descend (deepest-control f) true nil  nil nil f r))
+  ([pred f r]
+   (build-all descend (deepest-control f) true pred nil nil f r))
+  ([path-pred element-pred f r]
+   (build-all descend (deepest-control f) true nil path-pred element-pred f r)))
+
+(defn deepest-with-cycles
+  "Produces a lazy sequence of every leaf node reachable by traversing all of
+  the children of every element in the route. Does not cut cycles.
+
+  See `all` for details on arities."
+  ([f r]
+   (build-all descend (deepest-control f) false nil  nil nil f r))
+  ([pred f r]
+   (build-all descend (deepest-control f) false pred nil nil f r))
+  ([path-pred element-pred f r]
+   (build-all descend (deepest-control f) false nil path-pred element-pred f r)))
 
 (defn all-paths
-  "Produces a lazy sequence of paths to every element in the route and all of their children."
-  [f r]
-  (descents [] #(f %2) (ensure-seq r)))
+  "Produces a lazy sequence of paths to every element in the route and all of
+  their children. Cuts cycles.
+
+  See `all` for details on arities."
+  ([f r]
+   (build-all descents nil true nil nil nil f r))
+  ([pred f r]
+   (build-all descents nil true pred nil nil f r))
+  ([path-pred element-pred f r]
+   (build-all descents nil true nil path-pred element-pred f r)))
+
+(defn all-paths-with-cycles
+  "Produces a lazy sequence of paths to every element in the route and all of
+  their children. Does not cut cycles.
+
+  See `all` for details on arities."
+  ([f r]
+   (build-all descents nil false nil nil nil f r))
+  ([pred f r]
+   (build-all descents nil false pred nil nil f r))
+  ([path-pred element-pred f r]
+   (build-all descents nil false nil path-pred element-pred f r)))
 
 (defn deepest-paths
-  "Produces a lazy sequence of paths to every leaf node reachable by traversing all of the children of every element in the route."
-  [f r]
-  (descents []
-            (fn [p e] (if (seq (f e)) continue emit))
-            #(f %2)
-            (ensure-seq r)))
+  "Produces a lazy sequence of paths to every leaf node reachable by traversing
+  all of the children of every element in the route. Cuts cycles.
+
+  See `all` for details on arities."
+  ([f r]
+   (build-all descents (deepest-control f) true nil nil nil f r))
+  ([pred f r]
+   (build-all descents (deepest-control f) true pred nil nil f r))
+  ([path-pred element-pred f r]
+   (build-all descents (deepest-control f) true nil path-pred element-pred f r)))
+
+(defn deepest-paths-with-cycles
+  "Produces a lazy sequence of paths to every leaf node reachable by traversing
+  all of the children of every element in the route. Does not cut cycles.
+
+  See `all` for details on arities.
+
+  WARNING! If there are any cycles this will get stuck producing no output until
+  the cycle control kicks in after a long wait. Prefer `deepest-paths`"
+  ([f r]
+   (build-all descents (deepest-control f) false nil nil nil f r))
+  ([pred f r]
+   (build-all descents (deepest-control f) false pred nil nil f r))
+  ([path-pred element-pred f r]
+   (build-all descents (deepest-control f) false nil path-pred element-pred f r)))
+
+(defn- all-cycles-control [path e]
+  (if (= e (first path))
+    emit-and-cut
+    continue))
+
+(defn all-cycles
+  ;; force a path pred to turn on ordered-sets in build-all.
+  ([f r]
+   (build-all descend all-cycles-control true nil (constantly true) nil f r))
+  ([pred f r]
+   (build-all descend all-cycles-control true pred (constantly true) nil f r))
+  ([path-pred element-pred f r]
+   (build-all descend all-cycles-control true nil
+              (or path-pred (constantly true)) element-pred f r)))
+
+(defn all-cycle-paths
+  ;; force a path pred to turn on ordered-sets in build-all.
+  ([f r]
+   (build-all descents all-cycles-control true nil (constantly true) nil f r))
+  ([pred f r]
+   (build-all descents all-cycles-control true pred (constantly true) nil f r))
+  ([path-pred element-pred f r]
+   (build-all descents all-cycles-control true nil
+              (or path-pred (constantly true)) element-pred f r)))
+
+(defn iter
+  "Repeatedly (`n` times) apply the function `f` to the route `r`."
+  {:see-also ["clojure.core/iterate"]}
+  [n f r]
+  (reduce (fn [r _] (f r)) r (range n)))
 
 (defn with
   "Filters the route for elements where the result of calling the function f
@@ -868,10 +833,38 @@
   [v r]
   (filter #{v} (ensure-seq r)))
 
+(defn isn't
+  "Filter for items in the route equal to v."
+  [v r]
+  (remove #{v} (ensure-seq r)))
+
 (defn one-of
   "Filter for items in the route equal to one of the items in vs."
   [vs r]
   (filter (if (set? vs) vs (set vs)) r))
+
+(defn none-of
+  "Filter for items in the route equal to one of the items in vs."
+  [vs r]
+  (remove (if (set? vs) vs (set vs)) r))
+
+(defn of-kind [kind-pred r]
+  (if (keyword? kind-pred)
+    (filter #(= kind-pred (kind %)) r)
+    (filter (comp kind-pred kind) r)))
+
+(defn with-id [id-pred r]
+  (if (or (instance? KindId id-pred) (keyword? id-pred))
+    (filter #(= id-pred (element-id %)) r)
+    (filter (comp id-pred element-id) r)))
+
+(defn not-id [id-pred r]
+  (if (or (instance? KindId id-pred) (keyword? id-pred))
+    (remove #(= id-pred (element-id %)) r)
+    (remove (comp id-pred element-id) r)))
+
+(defn into-set [f r]
+  (f (into #{} r) r))
 
 (defn distinct-in
   "Use if distinct is needed within a loop or a lookahead, or if distinctness needs to
@@ -879,6 +872,9 @@
 
     (let [seen (atom #{})]
       (->> r (distinct-in seen) another-r (distinct-in seen)))"
+  {:deprecated "pre-release"}
+  ;; FIXME: I think this has some bad behavior at the boundaries that is a bit
+  ;; hard to work out so should probably be rethought.
   ([seen-atom r]
    (distinct-in {:update true} seen-atom r))
   ([{:keys [update] :or {update true}} seen-atom r]
@@ -914,7 +910,10 @@
 
 (defn prevent-cycles
   "Takes from the route while there is no duplicate within it. This is good for
-  preventing cycles in chains of to-one or from-one relationships."
+  preventing cycles in chains of to-one or from-one relationships.
+
+  NOTE that it stops iteration completely on its path when any element is seen
+  twice, so must be tightly bound to the cyclic path."
   [r]
   (manage [:on-cycle false]
     (no-cycles! r)))
@@ -1037,6 +1036,19 @@
               (assoc! r count (conj (get r count []) k)))
             (transient {})
             (group-count f coll)))))
+
+(defn sorted-group-by-count
+  "Return a map of {count [all keys with that unique count]}"
+  ([coll]
+   (reduce (fn [r [k count]]
+             (assoc r count (conj (get r count []) k)))
+           (sorted-map)
+           (group-count coll)))
+  ([f coll]
+   (reduce (fn [r [k count]]
+             (assoc r count (conj (get r count []) k)))
+           (sorted-map)
+           (group-count f coll))))
 
 (defn group-by-count>1
   "Return a map of {count [all keys with that unique count]} where count > 1"
