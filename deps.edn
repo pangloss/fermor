@@ -2,6 +2,7 @@
  :deps    {org.clojure/clojure          {:mvn/version "1.10.1"}
            io.lacuna/bifurcan           {:mvn/version "0.2.0-alpha4"}
            org.flatland/ordered         {:mvn/version "1.5.9"}
+           #_#_
            conditions/conditions        {:local/root "../conditions"}}
  :aliases {:test     {:extra-paths ["test"]
                       :jvm-opts ["-XX:-OmitStackTraceInFastThrow"]
