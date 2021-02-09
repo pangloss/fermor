@@ -44,6 +44,12 @@
 (defprotocol Kind
   (kind [v]))
 
+(defprotocol Linear
+  (to-forked [x]))
+
+(defprotocol Forked
+  (to-linear [x]))
+
 (defprotocol Graph
   (all-vertices [g])
   (get-vertex [g id] [g kind id] "Find a vertex by ID. See also parse-vertex-id."))

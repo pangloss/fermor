@@ -52,8 +52,7 @@
   Element
   (element-id [e] (element-id element))
   (get-graph [e] (get-graph element))
-  (get-document [e]
-    (get-document element))
+  (get-document [e] (get-document element))
 
   Wrappable
   (-unwrap [e] (-unwrap element))

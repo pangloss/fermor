@@ -8,12 +8,6 @@
            (java.util Optional)
            (clojure.lang IMeta)))
 
-(defprotocol Linear
-  (to-forked [x]))
-
-(defprotocol Forked
-  (to-linear [x]))
-
 (defn linear [x]
   (cond (satisfies? Forked x) (to-linear x)
         (satisfies? Linear x) x
@@ -24,7 +18,7 @@
         (satisfies? Forked x) x
         :else (condition :unknown-type-for/forked x)))
 
-(declare ->LinearGraph ->ForkedGraph ->V ->E graph-equality -get-edge-document)
+(declare ->LinearGraph ->ForkedGraph ->V ->E graph-equality -get-edge-document --in-edges --out-edges)
 
 (defn dag-edge
   (^IGraph [] (.linear (DirectedAcyclicGraph.)))
@@ -295,6 +289,18 @@
                           (element-id (.in_v e)))]
           edge)))))
 
+(defn labels [^IEdgeGraphs g]
+  (._getLabels g))
+
+(defn edge-graph ^IGraph [^IEdgeGraphs g label]
+  (._getEdgeGraph g label))
+
+(defn edge-graphs
+  ([^IEdgeGraphs g]
+   (edge-graphs g (labels g)))
+  ([^IEdgeGraphs g labels]
+   (into {} (map (juxt identity #(edge-graph g %)) labels))))
+
 ;; FIXME: validate whether using extend imposes a performance penalty vs implementation within the deftype.
 ;; the reason to use extend is it is easier to redefine the instance methods vs direct implementation within the type.
 ;; Most likely this turns into a TODO: integrate all `extend` use back into the defining type.
@@ -325,6 +331,23 @@
   (_getDocument ^java.util.Optional [e] document)
   (_setDocument [e ^java.util.Optional p] (set! document p) e)
 
+  Vertex
+  ;; TODO specialize 4 edge types with combinations of vertex id and vertex obj for in and out. Eliminate extra wrappers.
+  (-out-edges [v]
+    (--out-edges v nil (labels (.graph v))))
+  (-out-edges [v labels]
+    (--out-edges v nil labels))
+  (-out-edges [v _ labels]
+    ;; this specialization will be make more sense when/if I bring back abstract label support. More useful for neo4j, etc.
+    (--out-edges v nil labels))
+
+  (-in-edges [^V v]
+    (--in-edges v nil (labels (.graph v))))
+  (-in-edges [^V v labels]
+    (--in-edges v nil labels))
+  (-in-edges [^V v _ labels]
+    (--in-edges v nil labels))
+
   Element
   (element-id [e] id)
   (get-graph [e] graph)
@@ -337,18 +360,6 @@
         (when-not (.isEmpty p)
           (.get p))))))
 
-(defn labels [^IEdgeGraphs g]
-  (._getLabels g))
-
-(defn edge-graph ^IGraph [^IEdgeGraphs g label]
-  (._getEdgeGraph g label))
-
-(defn edge-graphs
-  ([^IEdgeGraphs g]
-   (edge-graphs g (labels g)))
-  ([^IEdgeGraphs g labels]
-   (into {} (map (juxt identity #(edge-graph g %)) labels))))
-
 (defn edges-with-label?
   ;; FIXME : is this correct in both directions?
   ([^V v label]
@@ -356,43 +367,25 @@
   ([^V v label ^IGraph edge]
    (.isPresent (.indexOf edge (.id v)))))
 
-;; TODO specialize 4 edge types with combinations of vertex id and vertex obj for in and out. Eliminate extra wrappers.
-
-(defn- --out-edges
-  ([^V v]
-   (--out-edges v (labels (.graph v))))
-  ([^V v labels]
-   (--out-edges v nil labels))
-  ([^V v _ labels]
-   ;; this specialization will be make more sense when/if I bring back abstract label support. More useful for neo4j, etc.
-   (mapcat (fn [label]
-             (when-let [edge (edge-graph (.graph v) label)]
-               (when (edges-with-label? v label edge)
-                 (map #(->E label v (->V (.graph v) % nil nil) nil true nil)
-                      (.out edge (.id v))))))
-           labels)))
-
-(defn- --in-edges
-  ([^V v]
-   (--in-edges v (labels (.graph v))))
-  ([^V v labels]
-   (--in-edges v nil labels))
-  ([^V v _ labels]
-   (mapcat (fn [label]
-             (when-let [edge (edge-graph (.graph v) label)]
-               (when (edges-with-label? v label edge)
-                 (map #(->E label (->V (.graph v) % nil nil) v nil false nil)
-                      (.in edge (.id v))))))
-           labels)))
-
-(defn vertices-with-edge [^ForkedGraph graph label]
-  (when-let [edge (edge-graph graph label)]
+(defn vertices-with-edge [graph label]
+  (when-let [edge (edge-graph (-unwrap graph) label)]
     (map #(->V graph % nil nil) (.vertices edge))))
 
-(extend V
-  Vertex
-  {:-in-edges --in-edges
-   :-out-edges --out-edges})
+(defn- --out-edges [^V v _ labels]
+  (mapcat (fn [label]
+            (when-let [edge (edge-graph (.graph v) label)]
+              (when (edges-with-label? v label edge)
+                (map #(->E label v (->V (.graph v) % nil nil) nil true nil)
+                     (.out edge (.id v))))))
+          labels))
+
+(defn- --in-edges [^V v _ labels]
+  (mapcat (fn [label]
+            (when-let [edge (edge-graph (.graph v) label)]
+              (when (edges-with-label? v label edge)
+                (map #(->E label (->V (.graph v) % nil nil) v nil false nil)
+                     (.in edge (.id v))))))
+          labels))
 
 (defn print-edge [as-out as-in ^E e ^java.io.Writer w]
   (if *compact-edge-printing*

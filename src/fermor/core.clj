@@ -2,13 +2,13 @@
   (:require [conditions :refer [condition manage lazy-conditions error default]]
             [potemkin :refer [import-vars]]
             [flatland.ordered.set :refer [ordered-set]]
-            [fermor.protocols :refer [-out-edges -in-edges traversed-forward -label -unwrap]]
-            [fermor.descend :refer [*descend *descents extrude]]
+            [fermor.protocols :refer [-out-edges -in-edges traversed-forward -label -unwrap Wrappable]]
+            [fermor.descend :refer [*descend *descents extrude *no-result-interval*]]
             fermor.graph
             [fermor.kind-graph :refer [->KGraph]]
             fermor.path)
   (:import clojure.lang.IMeta
-           (fermor.protocols TraversalDirection Wrappable KindId)))
+           (fermor.protocols TraversalDirection KindId)))
 
 (import-vars (fermor.protocols set-config!
                                ;; Predicates
@@ -310,13 +310,13 @@
 (defn documents
   "Return the document from each element"
   [r]
-  (map get-document r))
+  (map get-document (ensure-seq r)))
 
 (defn has-property
   "The document must be indexable, and if it is, returns true if the document
   contains the given key value pair."
   [r k v]
-  (filter (fn [e] (= v (get (get-document e) k))) r))
+  (filter (fn [e] (= v (get (get-document e) k))) (ensure-seq r)))
 
 ;; for sorted sets:
 
@@ -393,26 +393,26 @@
 (defn make-pairs
   "Map each element in r to a pair of [element (f element)]."
   ([f r]
-   (map (fn [v] [v (f v)]) r))
+   (map (fn [v] [v (f v)]) (ensure-seq r)))
   ([f0 f1 r]
-   (map (fn [v] [(f0 v) (f1 v)]) r)))
+   (map (fn [v] [(f0 v) (f1 v)]) (ensure-seq r))))
 
 (defn section
   "Apply a the section route to an element and then apply f to that section of the results.
 
   Both f and section are functions."
   [f section r]
-  (mapcat (comp f section) r))
+  (mapcat (comp f section) (ensure-seq r)))
 
 (defn context
   "Like section, but the function f receives the element as context together with the section route."
   [f section r]
-  (mapcat (fn [e] (f e (section e))) r))
+  (mapcat (fn [e] (f e (section e))) (ensure-seq r)))
 
 (defn sorted-section
   "This is mostly just an example of how to use sections to do sorting."
   [sort-by-f section r]
-  (mapcat (comp #(fast-sort-by sort-by-f %) section) r))
+  (mapcat (comp #(fast-sort-by sort-by-f %) section) (ensure-seq r)))
 
 (defn gather
   "Collect all results into a vector containing one collection."
@@ -870,7 +870,7 @@
     (remove (comp id-pred element-id) r)))
 
 (defn into-set [f r]
-  (f (into #{} r) r))
+  (f (into #{} (ensure-seq r)) r))
 
 (defn distinct-in
   "Use if distinct is needed within a loop or a lookahead, or if distinctness needs to
@@ -961,7 +961,7 @@
     `(-> ~data ~@forms)))
 
 (defn pluck [f coll]
-  (first (filter f coll)))
+  (first (filter f (ensure-seq coll))))
 
 (defn index-by
   "Return an index of unique items.
@@ -971,11 +971,13 @@
   ([->key coll]
    (persistent!
     (reduce (fn [idx x] (assoc! idx (->key x) x))
-            (transient {}) coll)))
+            (transient {})
+            (ensure-seq coll))))
   ([->key ->val coll]
    (persistent!
     (reduce (fn [idx x] (assoc! idx (->key x) (->val x)))
-            (transient {}) coll))))
+            (transient {})
+            (ensure-seq coll)))))
 
 (defn index-by-multi
   "Return an index of unique items.
@@ -987,7 +989,8 @@
     (reduce (fn [idx x] (reduce (fn [idx k] (assoc! idx k x))
                                 idx
                                 (->keys x)))
-            (transient {}) coll)))
+            (transient {})
+            (ensure-seq coll))))
   ([->keys ->val coll]
    (persistent!
     (reduce (fn [idx x]
@@ -996,7 +999,7 @@
                         idx
                         (->keys x))))
             (transient {})
-            coll))))
+            (ensure-seq coll)))))
 
 (defn group-count
   "Return a map of {item count-equal-items} or {(f item) count-equal}"
@@ -1005,14 +1008,14 @@
     (reduce (fn [r item]
               (assoc! r item (inc (get r item 0))))
             (transient {})
-            coll)))
+            (ensure-seq coll))))
   ([f coll]
    (persistent!
     (reduce (fn [r item]
               (let [k (f item)]
                 (assoc! r k (inc (get r k 0)))))
             (transient {})
-            coll))))
+            (ensure-seq coll)))))
 
 (defn sorted-group-count
   "Return a map of {item count-equal-items} or {(f item) count-equal}"
@@ -1020,13 +1023,13 @@
    (reduce (fn [r item]
              (assoc r item (inc (get r item 0))))
            (sorted-map)
-           coll))
+           (ensure-seq coll)))
   ([f coll]
    (reduce (fn [r item]
              (let [k (f item)]
                (assoc r k (inc (get r k 0)))))
            (sorted-map)
-           coll)))
+           (ensure-seq coll))))
 
 (defn group-by-count
   "Return a map of {count [all keys with that unique count]}"
@@ -1090,3 +1093,25 @@
                           (cons f (step (rest s) (conj seen val)))))))
                   xs seen)))]
      (step coll #{}))))
+
+(defn subgraph
+  "Build a graph of only the edges in the paths of the route. You must call
+  with-path on elements that are fed into the part of the route that you want to
+  produce a subgraph from."
+  {:see-also ["with-path"]}
+  [r]
+  (->> r
+       (mapcat path)
+       (filter edge?)
+       (group-by label)
+       (reduce-kv (fn [g label edges]
+                    (-> g
+                        (add-edges label (map (fn [edge]
+                                                [(element-id (in-vertex edge)) (element-id (out-vertex edge)) (get-document edge)])
+                                              edges))
+                        (add-vertices (keep (fn [v]
+                                              (when (get-document v)
+                                                [(element-id v) (get-document v)]))
+                                            (both-v edges)))))
+                  (build-graph))
+       forked))
