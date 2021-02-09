@@ -16,9 +16,9 @@
                                ;; Graph
                                graph get-vertex all-vertices
                                ;; MutableGraph
-                               add-vertices add-vertex add-edge add-edges set-property
+                               add-vertices add-vertex add-edge add-edges set-document
                                ;; Element
-                               element-id get-property
+                               element-id get-document
                                ;; Edge
                                out-vertex in-vertex
                                ;; Path
@@ -307,16 +307,16 @@
   [labels sort-by-f r]
   (out labels #(sort-by sort-by-f %) r))
 
-(defn properties
-  "Return the property from each element"
+(defn documents
+  "Return the document from each element"
   [r]
-  (map get-property r))
+  (map get-document r))
 
 (defn has-property
-  "The property must be indexable, and if it is, returns true if the property
+  "The document must be indexable, and if it is, returns true if the document
   contains the given key value pair."
   [r k v]
-  (filter (fn [e] (= v (get (get-property e) k))) r))
+  (filter (fn [e] (= v (get (get-document e) k))) r))
 
 ;; for sorted sets:
 

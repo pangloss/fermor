@@ -24,7 +24,7 @@
         (satisfies? Forked x) x
         :else (condition :unknown-type-for/forked x)))
 
-(declare ->LinearGraph ->ForkedGraph ->V ->E graph-equality)
+(declare ->LinearGraph ->ForkedGraph ->V ->E graph-equality -get-edge-document)
 
 (defn dag-edge
   (^IGraph [] (.linear (DirectedAcyclicGraph.)))
@@ -47,7 +47,7 @@
 
 ;; This does not allow multiple edges of the same type between identical
 ;; vertices. That's ok for most cases but a bit inconvenient. It can be modelled
-;; by using the edge property to specify edge count. If needed, multiple edges could
+;; by using the edge document to specify edge count. If needed, multiple edges could
 ;; be reified in edge objects when traversing. Until I find it's really needed
 ;; I'm not going to do it, and even then it may be better to model it as another
 ;; backing edge graph like or wrapping digraph or dag.
@@ -58,20 +58,20 @@
   (_removeEdgeGraph ^ILabelGraphs [label])
   (_addEdgeGraph ^ILabelGraphs [label ^io.lacuna.bifurcan.IGraph edges]))
 
-(definterface IPropertyCache
-  (_getProperty ^java.util.Optional [])
-  (_setProperty ^IPropertyCache [^java.util.Optional p]))
+(definterface IDocumentCache
+  (_getDocument ^java.util.Optional [])
+  (_setDocument ^IDocumentCache [^java.util.Optional p]))
 
-(deftype LinearGraph [^IMap edges ^IMap properties settings metadata]
+(deftype LinearGraph [^IMap edges ^IMap documents settings metadata]
   Object
   (equals [a b] (graph-equality a (-unwrap b)))
-  (hashCode [e] (hash-combine (.hashCode edges) (.hashCode properties)))
+  (hashCode [e] (hash-combine (.hashCode edges) (.hashCode documents)))
 
   clojure.lang.IObj
   (withMeta [o m]
     (if (= m metadata)
       o
-      (->LinearGraph edges properties settings m)))
+      (->LinearGraph edges documents settings m)))
 
   clojure.lang.IMeta
   (meta [o] metadata)
@@ -87,9 +87,9 @@
     (let [x (.get edges label)]
       (if (.isEmpty x)
         g
-        (->LinearGraph (.remove edges label) properties settings nil))))
+        (->LinearGraph (.remove edges label) documents settings nil))))
   (_addEdgeGraph ^ILabelGraphs [g label ^IGraph edge]
-    (->LinearGraph (.put edges label edge) properties settings nil))
+    (->LinearGraph (.put edges label edge) documents settings nil))
 
   Linear
   (to-forked [g]
@@ -97,7 +97,7 @@
                                         (reify BiFunction
                                           (apply [this k v]
                                             (.forked ^IGraph v)))))
-                   (.forked properties)
+                   (.forked documents)
                    settings
                    metadata)))
 
@@ -123,38 +123,38 @@
                          (if (.isEmpty x)
                            (if edge-type (edge-type) (digraph-edge))
                            (.get x)))
-         edges (reduce (fn [^IGraph edges [out-v in-v edge-property]]
-                         (.link edges out-v in-v edge-property))
+         edges (reduce (fn [^IGraph edges [out-v in-v edge-document]]
+                         (.link edges out-v in-v edge-document))
                        edges pairs-or-triples)]
      (->LinearGraph (.put ^IMap (.edges graph) label edges)
-                    (.properties graph)
+                    (.documents graph)
                     (.settings graph)
                     (.metadata graph)))))
 
 (defn- -add-edge
   ([graph label out-v in-v]
    (-add-edges graph label [[out-v in-v]]))
-  ([graph label out-v in-v property]
-   (-add-edges graph label [[out-v in-v property]])))
+  ([graph label out-v in-v document]
+   (-add-edges graph label [[out-v in-v document]])))
 
-(defn- -add-vertices ^LinearGraph [^LinearGraph graph id-property-pairs]
+(defn- -add-vertices ^LinearGraph [^LinearGraph graph id-document-pairs]
   (->LinearGraph (.edges graph)
-                 (reduce (fn [^IMap props [id property]]
-                           (if property
-                             (.put props id property)
+                 (reduce (fn [^IMap props [id document]]
+                           (if document
+                             (.put props id document)
                              (if (.contains props id)
                                props
                                (.put props id nil))))
-                         (.properties graph)
-                         id-property-pairs)
+                         (.documents graph)
+                         id-document-pairs)
                  (.settings graph)
                  (.metadata graph)))
 
 (defn- -add-vertex
   (^LinearGraph [^LinearGraph graph id]
    (-add-vertices graph [[id nil]]))
-  (^LinearGraph [^LinearGraph graph id property]
-   (-add-vertices graph [[id property]])))
+  (^LinearGraph [^LinearGraph graph id document]
+   (-add-vertices graph [[id document]])))
 
 (extend LinearGraph
   MutableGraph
@@ -162,20 +162,20 @@
    :add-edges #'-add-edges
    :add-vertices #'-add-vertices
    :add-vertex #'-add-vertex
-   :set-property #'-add-vertex})
+   :set-document #'-add-vertex})
 
 (declare edge-graphs)
 
-(deftype ForkedGraph [^IMap edges ^IMap properties settings metadata]
+(deftype ForkedGraph [^IMap edges ^IMap documents settings metadata]
   Object
   (equals [a b] (graph-equality a (-unwrap b)))
-  (hashCode [e] (hash-combine (.hashCode edges) (.hashCode properties)))
+  (hashCode [e] (hash-combine (.hashCode edges) (.hashCode documents)))
 
   clojure.lang.IObj
   (withMeta [o m]
     (if (= m metadata)
       o
-      (->ForkedGraph edges properties settings m)))
+      (->ForkedGraph edges documents settings m)))
 
   clojure.lang.IMeta
   (meta [o] metadata)
@@ -194,9 +194,9 @@
     (let [x (.get edges label)]
       (if (.isEmpty x)
         g
-        (->ForkedGraph (.remove edges label) properties settings nil))))
+        (->ForkedGraph (.remove edges label) documents settings nil))))
   (_addEdgeGraph ^ILabelGraphs [g label ^IGraph edge]
-    (->ForkedGraph (.put edges label edge) properties settings nil))
+    (->ForkedGraph (.put edges label edge) documents settings nil))
 
   Graph
   (all-vertices [g]
@@ -214,7 +214,7 @@
                                (reify BiFunction
                                  (apply [this k v]
                                    (.linear ^IGraph v))))
-                   (.linear properties)
+                   (.linear documents)
                    settings
                    metadata)))
 
@@ -223,32 +223,32 @@
     ForkedGraph (.settings ^ForkedGraph g)
     LinearGraph (.settings ^LinearGraph g)))
 
-(defn property-equality? [g]
-  (:property-equality? (graph-settings g)))
+(defn document-equality? [g]
+  (:document-equality? (graph-settings g)))
 
 (defn- graph-equality [a b]
   ;; TODO: include settings in equality and hashing?
-  (if-let [[edges properties] (condp instance? a
-                                LinearGraph [(.edges ^LinearGraph a) (.properties ^LinearGraph a)]
-                                ForkedGraph [(.edges ^ForkedGraph a) (.properties ^ForkedGraph a)]
+  (if-let [[edges documents] (condp instance? a
+                                LinearGraph [(.edges ^LinearGraph a) (.documents ^LinearGraph a)]
+                                ForkedGraph [(.edges ^ForkedGraph a) (.documents ^ForkedGraph a)]
                                 false)]
     (condp instance? b
       LinearGraph (and (.equals edges (.edges ^LinearGraph b))
-                       (.equals properties (.properties ^LinearGraph b)))
+                       (.equals documents (.documents ^LinearGraph b)))
       ForkedGraph (and (.equals edges (.edges ^ForkedGraph b))
-                       (.equals properties (.properties ^ForkedGraph b)))
+                       (.equals documents (.documents ^ForkedGraph b)))
       false)
     false))
 
-(deftype E [label out-v in-v ^:unsynchronized-mutable ^java.util.Optional property used-forward metadata]
+(deftype E [label out-v in-v ^:unsynchronized-mutable ^java.util.Optional document used-forward metadata]
   Object
   (equals [a b] (let [b (-unwrap b)]
                   (and (instance? E b)
                        (= label (-label b))
                        (= out-v (out-vertex b))
                        (= in-v (in-vertex b))
-                       (if (property-equality? (get-graph a))
-                         (= property (get-property b))
+                       (if (document-equality? (get-graph a))
+                         (= document (get-document b))
                          true))))
 
   (hashCode [e] (hash-combine (hash label) (hash-combine (hash out-v) (hash in-v))))
@@ -257,7 +257,7 @@
   (withMeta [o m]
     (if (= m metadata)
       o
-      (->E out-v in-v property used-forward m)))
+      (->E out-v in-v document used-forward m)))
 
   clojure.lang.IMeta
   (meta [o] metadata)
@@ -265,14 +265,14 @@
   Wrappable
   (-unwrap [e] e)
 
-  IPropertyCache
-  (_getProperty ^java.util.Optional [e] property)
-  (_setProperty [e ^java.util.Optional p] (set! property p) e)
+  IDocumentCache
+  (_getDocument ^java.util.Optional [e] document)
+  (_setDocument [e ^java.util.Optional p] (set! document p) e)
 
   Element
   (element-id [e] nil)
   (get-graph [e] (get-graph out-v))
-  (get-property [e] (-get-edge-property e))
+  (get-document [e] (-get-edge-document e))
 
   Edge
   (-label [e] label)
@@ -282,8 +282,8 @@
   TraversalDirection ;; see ->?, <-?, go-back, go-on, other-v, same-v
   (traversed-forward [e] used-forward))
 
-(defn- -get-edge-property [^E e]
-  (if-let [p ^Optional (._getProperty e)]
+(defn- -get-edge-document [^E e]
+  (if-let [p ^Optional (._getDocument e)]
     (when-not (.isEmpty p)
       (.get p))
     (let [g ^ForkedGraph (get-graph (.out_v e))
@@ -299,13 +299,13 @@
 ;; the reason to use extend is it is easier to redefine the instance methods vs direct implementation within the type.
 ;; Most likely this turns into a TODO: integrate all `extend` use back into the defining type.
 
-(deftype V [^ForkedGraph graph id ^:unsynchronized-mutable ^java.util.Optional property metadata]
+(deftype V [^ForkedGraph graph id ^:unsynchronized-mutable ^java.util.Optional document metadata]
   Object
   (equals [a b] (let [b (-unwrap b)]
                   (and (instance? V b)
                        (= id (element-id b))
-                       (if (property-equality? graph)
-                         (= property (get-property b))
+                       (if (document-equality? graph)
+                         (= document (get-document b))
                          true))))
   (hashCode [e] (hash id))
 
@@ -313,7 +313,7 @@
   (withMeta [o m]
     (if (= m metadata)
       o
-      (->V graph id property m)))
+      (->V graph id document m)))
 
   clojure.lang.IMeta
   (meta [o] metadata)
@@ -321,19 +321,19 @@
   Wrappable
   (-unwrap [e] e)
 
-  IPropertyCache
-  (_getProperty ^java.util.Optional [e] property)
-  (_setProperty [e ^java.util.Optional p] (set! property p) e)
+  IDocumentCache
+  (_getDocument ^java.util.Optional [e] document)
+  (_setDocument [e ^java.util.Optional p] (set! document p) e)
 
   Element
   (element-id [e] id)
   (get-graph [e] graph)
-  (get-property [e]
-    (if property
-      (when-not (.isEmpty property)
-        (.get property))
-      (let [p (.get ^IMap (.properties graph) id)]
-        (set! (.property e) p)
+  (get-document [e]
+    (if document
+      (when-not (.isEmpty document)
+        (.get document))
+      (let [p (.get ^IMap (.documents graph) id)]
+        (set! (.document e) p)
         (when-not (.isEmpty p)
           (.get p))))))
 
@@ -412,7 +412,7 @@
       (print-method (element-id (.out_v e)) w)
       (.write w " ")
       (print-method (.label e) w)
-      (when-let [p (get-property e)]
+      (when-let [p (get-document e)]
         (.write w " [")
         (print-method p w)
         (.write w "]"))
@@ -430,7 +430,7 @@
   (.write w "(v ")
   (print-method (.id ^V e) w)
   (when-not *compact-vertex-printing*
-    (when-let [p (get-property e)]
+    (when-let [p (get-document e)]
       (.write w " ")
       (print-method p w)))
   (.write w ")"))
@@ -441,44 +441,17 @@
 (defn v
   ([id]
    (->V (condition :default-graph nil optional) id nil nil))
-  ([id property]
-   (->V (condition :default-graph nil optional) id (Optional/ofNullable property) nil)))
+  ([id document]
+   (->V (condition :default-graph nil optional) id (Optional/ofNullable document) nil)))
 
 (defn e->
   ([out-id label in-id]
    (->E label (v out-id) (v in-id) nil true nil))
-  ([out-id label [property] in-id]
-   (->E label (v out-id) (v in-id) (Optional/ofNullable property) true nil)))
+  ([out-id label [document] in-id]
+   (->E label (v out-id) (v in-id) (Optional/ofNullable document) true nil)))
 
 (defn e<-
   ([in-id label out-id]
    (->E label (v out-id) (v in-id) nil false nil))
-  ([in-id label [property] out-id]
-   (->E label (v out-id) (v in-id) (Optional/ofNullable property) false nil)))
-
-(comment
-  (get-graph (e-> 1 :xx [{:a 1 :b 2}] 4))
-  (get-graph (v 1))
-  (require '[fermor.path :as p])
-
-  (def g    (-> (build-graph)
-                (add-edges :testing dag (partition 3 1 (range 100000)))
-                (add-edges :blogging dag (partition 2 1 (range 100000 0 -1)))
-                (add-vertices (partition 2 1 (range 100000)))
-                (add-edge :boo 4 999 {:a 1})
-                time))
-
-  (= (hash g) (hash (forked g)))
-  (= (hash g) (hash (add-edge g :xxxxxxx 4 998 {:a 2})))
-
-  (time
-   (-> (build-graph)
-       (add-edges :testing dag (partition 3 1 (range 100)))
-       (add-edges :blogging dag (partition 2 1 (range 100 0 -1)))
-       (add-vertices (partition 2 1 (range 1000)))
-       (add-edge :boo 4 999 {:a 1})
-       forked
-       with-
-       (get-vertex 4) out out* (->> (map in))))
-
- ,)
+  ([in-id label [document] out-id]
+   (->E label (v out-id) (v in-id) (Optional/ofNullable document) false nil)))

@@ -49,26 +49,26 @@
   (get-vertex [g id] [g kind id] "Find a vertex by ID. See also parse-vertex-id."))
 
 (defprotocol MutableGraph
-  (add-vertices [g id-property-pairs]
+  (add-vertices [g id-document-pairs]
     "The second best way to add multiple vertices to a graph after `add-edges`,
-    but this way allows you to associate a property to the vertex.")
+    but this way allows you to associate a document to the vertex.")
   (add-vertex
     [g id]
-    [g id property]
-    "Add a vertex. If `property` is provided, attach it to the vertex as well.")
+    [g id document]
+    "Add a vertex. If `document` is provided, attach it to the vertex as well.")
   (add-edge
     [g label out-v in-v]
-    [g label out-v in-v property]
+    [g label out-v in-v document]
     "Add an edge from v to in-v with the given label string.")
   (add-edges
     [g label pairs]
     [g label edge-type pairs]
     "Add a edges between each pair of vertices in `pairs`.")
-  (set-property [g element value]
-    "Reset an element's property to a new value, replacing the old value.
+  (set-document [g element value]
+    "Reset an element's document to a new value, replacing the old value.
 
-     Note that you can use a map for the property to achieve the typical property set
-     attached to an element. Using atoms for the property or anything else you like
+     Note that you can use a map for the document to achieve the typical document set
+     attached to an element. Using atoms for the document or anything else you like
      is also possible."))
 
 (defprotocol Wrappable
@@ -77,7 +77,7 @@
 (defprotocol Element
   (element-id [e] "Return the id of the given vertex or edge.")
   (get-graph [e] "Return the graph the element is part of.")
-  (get-property [e] [e k] "Get the property object for the element."))
+  (get-document [e] [e k] "Get the document object for the element."))
 
 (defprotocol Vertex
   (-out-edges [v]

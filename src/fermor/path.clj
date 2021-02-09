@@ -11,7 +11,7 @@
   Element
   (element-id [v] (element-id (.element v)))
   (get-graph [v] (get-graph (.element v)))
-  (get-property [v key] (get-property (.element v) key))
+  (get-document [v key] (get-document (.element v) key))
 
   Wrappable
   (-unwrap [e] (-unwrap (.element e)))
@@ -49,8 +49,8 @@
   Element
   (element-id [e] (element-id (.element e)))
   (get-graph [e] (get-graph (.element e)))
-  (get-property [e]
-    (get-property (.element e)))
+  (get-document [e]
+    (get-document (.element e)))
 
   Wrappable
   (-unwrap [e] (-unwrap (.element e)))

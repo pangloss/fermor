@@ -16,7 +16,7 @@
   Element
   (element-id ^KindId [v] (element-id element))
   (get-graph [v] (get-graph element))
-  (get-property [v key] (get-property element key))
+  (get-document [v key] (get-document element key))
 
   Kind
   (kind [v] (:kind (element-id v)))
@@ -52,8 +52,8 @@
   Element
   (element-id [e] (element-id element))
   (get-graph [e] (get-graph element))
-  (get-property [e]
-    (get-property element))
+  (get-document [e]
+    (get-document element))
 
   Wrappable
   (-unwrap [e] (-unwrap element))
@@ -92,7 +92,7 @@
   (.write w " ")
   (print-method (:id (element-id e)) w)
   (when-not *compact-vertex-printing*
-    (when-let [p (get-property e)]
+    (when-let [p (get-document e)]
       (.write w " ")
       (print-method p w)))
   (.write w ")"))
@@ -109,17 +109,17 @@
 (defn V
   ([kind id]
    (->KVertex (v kind id)))
-  ([kind id property]
-   (->KVertex (v kind id property))))
+  ([kind id document]
+   (->KVertex (v kind id document))))
 
 (defn E->
   ([out-id label in-id]
    (->KEdge (e-> out-id label in-id)))
-  ([out-id label [property] in-id]
-   (->KEdge (e-> out-id label [property] in-id))))
+  ([out-id label [document] in-id]
+   (->KEdge (e-> out-id label [document] in-id))))
 
 (defn E<-
   ([out-id label in-id]
    (->KEdge (e<- out-id label in-id)))
-  ([out-id label [property] in-id]
-   (->KEdge (e<- out-id label [property] in-id))))
+  ([out-id label [document] in-id]
+   (->KEdge (e<- out-id label [document] in-id))))
