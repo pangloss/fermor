@@ -5,7 +5,7 @@
             [fermor.protocols :refer [-out-edges -in-edges traversed-forward -label -unwrap]]
             [fermor.descend :refer [*descend *descents extrude]]
             fermor.graph
-            fermor.kind-graph
+            [fermor.kind-graph :refer [->KGraph]]
             fermor.path)
   (:import clojure.lang.IMeta
            (fermor.protocols TraversalDirection Wrappable KindId)))
@@ -48,6 +48,12 @@
   (if (satisfies? Wrappable e)
     (-unwrap e)
     e))
+
+(defn kinded
+  "Wrap graph using this if all vertex IDs will be `(k :type id)` for features
+  related to vertex types."
+  [graph]
+  (->KGraph graph))
 
 (defn label
   "This edge label"
