@@ -38,6 +38,7 @@
 ;; the Gremlin queries, where unclear scopes and magic operators abound.
 
 (defn query*gremlin-port [person]
+  ;; See `query` below for the nice version.
   (->> (all-vertices job-graph)
        (mapcat
         (fn [job]
