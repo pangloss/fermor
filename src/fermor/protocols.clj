@@ -1,7 +1,5 @@
 (ns fermor.protocols
-  (:require [conditions :refer [condition default]]
-            [clojure.pprint :refer [simple-dispatch]])
-  (:import clojure.lang.IMeta))
+  (:require [clojure.pprint :refer [simple-dispatch]]))
 
 ;; You probably want to use set-config to change these globally.
 (def ^:dynamic *compact-vertex-printing* true)

@@ -1,10 +1,8 @@
 (ns fermor.kind-graph
   (:use fermor.protocols)
-  (:require [conditions :refer [condition error default optional]]
-            [fermor.graph :refer [print-edge v e-> e<- ->V]]
+  (:require [fermor.graph :refer [print-edge v e-> e<- ->V]]
             [clojure.pprint :refer [simple-dispatch]])
-  (:import (fermor.protocols KindId)
-           (java.util Optional)))
+  (:import (fermor.protocols KindId)))
 
 (declare ->KEdge)
 
