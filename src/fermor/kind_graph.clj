@@ -62,6 +62,12 @@
   (in-vertex [e] (KVertex. (in-vertex element)))
   (out-vertex [e] (KVertex. (out-vertex element))))
 
+(defn- of-kind [kind-pred r]
+  ;; copied from core
+  (if (keyword? kind-pred)
+    (filter #(= kind-pred (kind %)) r)
+    (filter (comp kind-pred kind) r)))
+
 (deftype KGraph [graph]
   Object
   (equals [a b] (.equals graph b))
@@ -70,6 +76,9 @@
   Graph
   (all-vertices [g]
     (map ->KVertex (all-vertices graph)))
+  (all-vertices [g kind]
+    (->> (all-vertices g)
+         (of-kind kind)))
   (get-vertex [g kind-id]
     (->KVertex (->V (-unwrap g) kind-id nil nil)))
   (get-vertex [g kind id]
