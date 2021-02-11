@@ -48,6 +48,9 @@
 (defprotocol Forked
   (to-linear [x]))
 
+(defprotocol ISubpath
+  (-subpath [x from-end] [x from-end length]))
+
 (defprotocol Graph
   (all-vertices [g] [g kind])
   (get-vertex [g id] [g kind id] "Find a vertex by ID. See also parse-vertex-id."))

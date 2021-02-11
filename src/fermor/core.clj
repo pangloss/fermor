@@ -729,18 +729,6 @@
   ([path-pred element-pred f r]
    (build-all descend (deepest-control f) true nil path-pred element-pred f r)))
 
-(defn deepest-with-cycles
-  "Produces a lazy sequence of every leaf node reachable by traversing all of
-  the children of every element in the route. Does not cut cycles.
-
-  See `all` for details on arities."
-  ([f r]
-   (build-all descend (deepest-control f) false nil  nil nil f r))
-  ([pred f r]
-   (build-all descend (deepest-control f) false pred nil nil f r))
-  ([path-pred element-pred f r]
-   (build-all descend (deepest-control f) false nil path-pred element-pred f r)))
-
 (defn all-paths
   "Produces a lazy sequence of paths to every element in the route and all of
   their children. Cuts cycles.
@@ -777,20 +765,34 @@
   ([path-pred element-pred f r]
    (build-all descents (deepest-control f) true nil path-pred element-pred f r)))
 
-(defn deepest-paths-with-cycles
-  "Produces a lazy sequence of paths to every leaf node reachable by traversing
+(comment
+  ;; I think these are useless... why didn't I delete them?
+  (defn deepest-with-cycles
+    "Produces a lazy sequence of every leaf node reachable by traversing all of
+  the children of every element in the route. Does not cut cycles.
+
+  See `all` for details on arities."
+    ([f r]
+     (build-all descend (deepest-control f) false nil  nil nil f r))
+    ([pred f r]
+     (build-all descend (deepest-control f) false pred nil nil f r))
+    ([path-pred element-pred f r]
+     (build-all descend (deepest-control f) false nil path-pred element-pred f r)))
+
+  (defn deepest-paths-with-cycles
+    "Produces a lazy sequence of paths to every leaf node reachable by traversing
   all of the children of every element in the route. Does not cut cycles.
 
   See `all` for details on arities.
 
   WARNING! If there are any cycles this will get stuck producing no output until
   the cycle control kicks in after a long wait. Prefer `deepest-paths`"
-  ([f r]
-   (build-all descents (deepest-control f) false nil nil nil f r))
-  ([pred f r]
-   (build-all descents (deepest-control f) false pred nil nil f r))
-  ([path-pred element-pred f r]
-   (build-all descents (deepest-control f) false nil path-pred element-pred f r)))
+    ([f r]
+     (build-all descents (deepest-control f) false nil nil nil f r))
+    ([pred f r]
+     (build-all descents (deepest-control f) false pred nil nil f r))
+    ([path-pred element-pred f r]
+     (build-all descents (deepest-control f) false nil path-pred element-pred f r))))
 
 (defn- all-cycles-control [path e]
   (if (= e (first path))
@@ -816,6 +818,16 @@
   ([path-pred element-pred f r]
    (build-all descents all-cycles-control true nil
               (or path-pred (constantly true)) element-pred f r)))
+
+(defn cycle
+  "Matches only if the current element is a member fo the results from f."
+  [f r]
+  (lookahead #(all-cycles 1 f %) r))
+
+(defn no-cycle
+  "Matches only if the current element is not a member fo the results from f."
+  [f r]
+  (neg-lookahead #(all-cycles 1 f %) r))
 
 (defn iter
   "Repeatedly (`n` times) apply the function `f` to the route `r`."

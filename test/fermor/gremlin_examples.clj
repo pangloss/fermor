@@ -16,22 +16,14 @@
                              [:appBob2 :blueprintsJob2]
                              [:appStephen1 :rexsterJob1]
                              [:appStephen2 :blueprintsJob3]])
-      (add-edges :created [[:blueprints :blueprintsJob1
-                            {:creationDate "12/20/2015"}]
-                           [:blueprints :blueprintsJob2
-                            {:creationDate "12/15/2015"}]
-                           [:blueprints :blueprintsJob3
-                            {:creationDate "12/16/2015"}]
-                           [:rexster :rexsterJob1
-                            {:creationDate "12/18/2015"}]])
-      (add-vertices [[:bob {:type :person
-                            :name "Bob"}]
-                     [:stephen {:type :person
-                                :name "Stephen"}]
-                     [:blueprints {:type :company
-                                   :name "Blueprints, Inc"}]
-                     [:rexster {:type :company
-                                :name "Rexster, LLC"}]])
+      (add-edges :created [[:blueprints :blueprintsJob1 {:creationDate "12/20/2015"}]
+                           [:blueprints :blueprintsJob2 {:creationDate "12/15/2015"}]
+                           [:blueprints :blueprintsJob3 {:creationDate "12/16/2015"}]
+                           [:rexster :rexsterJob1 {:creationDate "12/18/2015"}]])
+      (add-vertices [[:bob {:type :person :name "Bob"}]
+                     [:stephen {:type :person :name "Stephen"}]
+                     [:blueprints {:type :company :name "Blueprints, Inc"}]
+                     [:rexster {:type :company :name "Rexster, LLC"}]])
       (forked)))
 
 ;; Even though this has a lot of indentation, it's much more comprehensible than
