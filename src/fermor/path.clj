@@ -155,7 +155,7 @@
 
   clojure.lang.IPersistentCollection
   (cons [this val] (ReverseSubpath. (cons val rpath) nil))
-  (empty [_] (VecSubpath. [] nil))
+  (empty [_] (->VecSubpath [] nil))
   (equiv [this o] (.equals this o))
 
   ISubpath
