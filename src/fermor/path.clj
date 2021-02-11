@@ -132,7 +132,7 @@
 
 (deftype ReverseSubpath [rpath metadata]
   Object
-  (equals [a b] (when (satisfies? Path b)
+  (equals [a b] (when (satisfies? ISubpath b)
                   (= (reverse-path a) (reverse-path b))))
   (hashCode [e] (.hashCode (reverse-path e)))
 
@@ -156,10 +156,7 @@
   clojure.lang.IPersistentCollection
   (cons [this val] (ReverseSubpath. (cons val rpath) nil))
   (empty [_] (VecSubpath. [] nil))
-  (equiv [this o]
-    (when (or (instance? clojure.lang.Sequential o) (instance? java.util.List o))
-      (clojure.lang.Util/equiv (seq this) (seq o))
-      false))
+  (equiv [this o] (.equals this o))
 
   ISubpath
   (-subpath [e from-end]
@@ -168,11 +165,11 @@
     (ReverseSubpath. (take length (drop from-end rpath)) metadata))
 
   Path
-  (reverse-path [e] rpath))
+  (reverse-path [e] (seq rpath)))
 
 (deftype VecSubpath [^clojure.lang.IPersistentVector path metadata]
   Object
-  (equals [a b] (when (satisfies? Path b)
+  (equals [a b] (when (satisfies? ISubpath b)
                   (= (reverse-path a) (reverse-path b))))
   (hashCode [e] (.hashCode (reverse-path e)))
 
@@ -196,10 +193,7 @@
   clojure.lang.IPersistentCollection
   (cons [this val] (ReverseSubpath. (cons val (reverse path)) nil))
   (empty [_] (VecSubpath. [] nil))
-  (equiv [this o]
-    (when (or (instance? clojure.lang.Sequential o) (instance? java.util.List o))
-      (clojure.lang.Util/equiv (seq this) (seq o))
-      false))
+  (equiv [this o] (.equals this o))
 
   ISubpath
   (-subpath [e from-end]
@@ -218,9 +212,11 @@
      e
      (ReverseSubpath. (reverse-path e) nil)))
   ([e from-end]
-   (if (satisfies? ISubpath e)
-     (-subpath e from-end)
-     (ReverseSubpath. (drop from-end (reverse-path e)) nil)))
+   (if (<= from-end 0)
+     e
+     (if (satisfies? ISubpath e)
+       (-subpath e from-end)
+       (ReverseSubpath. (drop from-end (reverse-path e)) nil))))
   ([e from-end length]
    (if (satisfies? ISubpath e)
      (-subpath e from-end length)
@@ -240,11 +236,6 @@
      :else
      (->VecSubpath [e] nil))))
 
-(defn as-path
-  "Turn a vector of arbitrary things into a path"
-  [v]
-  (->VecSubpath (vec v) nil))
-
 (defn same-path? [a b]
   (= (path a) (path b)))
 
@@ -259,6 +250,11 @@
         (edge? e) (PEdge. e nil nil)
         (graph? e) (PGraph. e nil)
         :else (PValue. e nil nil)))
+
+(defn as-path
+  "Turn a vector of arbitrary things into a path. Not lazy."
+  [v]
+  (->VecSubpath (vec v) nil))
 
 (defn no-path
   "Extract the wrapped vertex or edge.
@@ -327,12 +323,13 @@
                (recur es (conj edges e) (dec depth))))
            (recur es edges depth)))))))
 
-
-;; a nice thing would be to show in paths when an edge is traversed in reverse, 2 possibilities: inspect the path or mark the edge when traversing it. Marking it makes other natural.
-
 (defn- print-path [v ^java.io.Writer w]
   (binding [*compact-edge-printing* *compact-path-printing*]
-    (let [p (path v)]
+    (let [p (subpath (path v) 0 11)
+          long? (= 11 (count p))
+          p (if long? (next p) p)]
+      (when long?
+        (.write w "... "))
       (when-let [x (first p)]
         (print-method (no-path! x) w))
       (doseq [x (rest p)]
@@ -357,3 +354,16 @@
 (defmethod simple-dispatch PVertex [o] (print-method o *out*))
 (defmethod simple-dispatch PEdge [o] (print-method o *out*))
 (defmethod simple-dispatch PValue [o] (print-method o *out*))
+
+(defmethod print-method ReverseSubpath [p ^java.io.Writer w]
+  (.write w "#path/P [")
+  (print-path p w)
+  (.write w "]"))
+
+(defmethod print-method VecSubpath [p ^java.io.Writer w]
+  (.write w "#path/P [")
+  (print-path p w)
+  (.write w "]"))
+
+(defmethod simple-dispatch ReverseSubpath [o] (print-method o *out*))
+(defmethod simple-dispatch VecSubpath [o] (print-method o *out*))
