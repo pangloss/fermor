@@ -44,17 +44,17 @@
   ([x]
    (proto/graph x)))
 
-(defn vertices
-  ([g] (all-vertices g))
-  ([g labels]
-   (distinct (mapcat #(vertices-with-edge g %) (ensure-seq labels)))))
-
 (defn ensure-seq
   "Returns either nil or something sequential."
   [x]
   (if (or (nil? x) (sequential? x))
     x
     [x]))
+
+(defn vertices
+  ([g] (all-vertices g))
+  ([g labels]
+   (distinct (mapcat #(vertices-with-edge g %) (ensure-seq labels)))))
 
 (defn unwrap
   "Recursively unwrap any element or just return the input if it's not wrapped"

@@ -96,6 +96,15 @@
                    metadata)))
 
 (defn build-graph
+  "Create a new linear graph.
+
+  Possible settings:
+  - :document-equality?   If `false` (default), vertices are compared for
+                          equality only by id. If `true`, vertices also
+                          compare based on their associated document.
+  - :edge-builder         Map of {:edge-label (fn [graph ^IGraph edges from to document])}
+                          The function must return the IGraph with the edge added.
+                          Default: `add-unique-edge`"
   ([]
    (->LinearGraph (.linear (Map.)) (.linear (Map.)) nil nil))
   ([settings]
@@ -109,16 +118,53 @@
              (error "TODO: re initialize the graph so that all maps have value semantics\n"
                     "via Map(ToLongFunction<K> hashFn, BiPredicate<K,K> equalsFn)")))
 
+(defn add-unique-edge
+  "The default strategy. The edge document can be any value, and adding a
+  duplicate edge will replace the old edge."
+  [graph ^IGraph edges out-v in-v edge-document]
+  (.link edges out-v in-v edge-document))
+
+(def ^:private merge-weighted-edges
+  (reify java.util.function.BinaryOperator
+    (apply [this a b]
+      (+ a b))))
+
+(defn add-unique-weighted-edge
+  "An edge builder that forces the edge-document to be a double and will update
+  the edge weight with the sum of the existing weight and the new weight if the
+  same edge is added again."
+  [^double default-weight]
+  (fn [graph ^IGraph edges out-v in-v edge-weight]
+    (.link edges out-v in-v
+           (double (if (number? edge-weight) edge-weight default-weight))
+           merge-weighted-edges)))
+
+(def ^:private merge-parallel-edges
+  (reify java.util.function.BinaryOperator
+    (apply [this a b]
+      (let [count (:parallel/count a)]
+        (assoc a
+               :parallel/count (inc count)
+               count (get b 0))))))
+
+(defn add-parallel-edge
+  "An edge builder that will attach multiple documents to an edge, simulating parallel edges."
+  [graph ^IGraph edges out-v in-v edge-document]
+  (.link edges out-v in-v
+         {:parallel/count 1 0 edge-document}
+         merge-parallel-edges))
+
 (defn- -add-edges
   (^LinearGraph [^LinearGraph graph label pairs-or-triples]
    (-add-edges graph label nil pairs-or-triples))
   (^LinearGraph [^LinearGraph graph label edge-type pairs-or-triples]
-   (let [^IGraph edges (let [x (.get ^IMap (.edges graph) label)]
+   (let [edge-builder (get-in (.settings graph) [:edge-builder label] add-unique-edge)
+         ^IGraph edges (let [x (.get ^IMap (.edges graph) label)]
                          (if (.isEmpty x)
                            (if edge-type (edge-type) (digraph-edge))
                            (.get x)))
          edges (reduce (fn [^IGraph edges [out-v in-v edge-document]]
-                         (.link edges out-v in-v edge-document))
+                         (edge-builder graph edges out-v in-v edge-document))
                        edges pairs-or-triples)]
      (->LinearGraph (.put ^IMap (.edges graph) label edges)
                     (.documents graph)
