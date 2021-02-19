@@ -2,7 +2,7 @@
   (:require [conditions :refer [condition manage lazy-conditions error default]]
             [potemkin :refer [import-vars]]
             [flatland.ordered.set :refer [ordered-set]]
-            [fermor.protocols :refer [-out-edges -in-edges traversed-forward -label -unwrap Wrappable]]
+            [fermor.protocols :as proto :refer [-out-edges -in-edges traversed-forward -label -unwrap Wrappable]]
             [fermor.descend :refer [*descend *descents extrude *no-result-interval*]]
             fermor.graph
             [fermor.kind-graph :refer [->KGraph]]
@@ -14,7 +14,7 @@
                                ;; Predicates
                                graph? vertex? edge? element?
                                ;; Graph
-                               graph get-vertex all-vertices
+                               get-vertex all-vertices
                                ;; MutableGraph
                                add-vertices add-vertex add-edge add-edges set-document
                                ;; Element
@@ -34,6 +34,20 @@
              (fermor.path with-path path? path no-path no-path! cyclic-path?)
              ;; Kind Graph
              (fermor.kind-graph V E-> E<-))
+
+
+(defn graph
+  "Return the graph associated with the given element. If x is a graph, return
+  x. If called with no argument, returns a new graph."
+  ([]
+   (build-graph))
+  ([x]
+   (proto/graph x)))
+
+(defn vertices
+  ([g] (all-vertices g))
+  ([g labels]
+   (distinct (mapcat #(vertices-with-edge g %) (ensure-seq labels)))))
 
 (defn ensure-seq
   "Returns either nil or something sequential."
@@ -819,13 +833,13 @@
    (build-all descents all-cycles-control true nil
               (or path-pred (constantly true)) element-pred f r)))
 
-(defn cycle
-  "Matches only if the current element is a member fo the results from f."
+(defn is-cycle
+  "Matches only if the current element is a member of the results from f."
   [f r]
   (lookahead #(all-cycles 1 f %) r))
 
 (defn no-cycle
-  "Matches only if the current element is not a member fo the results from f."
+  "Matches only if the current element is not a member of the results from f."
   [f r]
   (neg-lookahead #(all-cycles 1 f %) r))
 
