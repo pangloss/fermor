@@ -258,71 +258,89 @@
   (def w (wrapper VertexWrap ->VertexWrap EdgeWrap ->EdgeWrap)))
 
 
-;; Add extensions:
+;; Support to add extensions:
 
-(defmulti compile-wrapper (fn compile-wrapper-dispatch [method arity wrap-fn result-type] result-type))
+(defmulti compile-wrapper (fn compile-wrapper-dispatch [method wrap-fn result-type] result-type))
 
-(defmethod compile-wrapper :default [method arity wrap-fn result-type]
-  (case arity
-    1 (fn [o] (let [W+ (-wrapper o)] (-> W+ (wrap-fn o) method)))
-    2 (fn [o a] (let [W+ (-wrapper o)] (-> W+ (wrap-fn o) (method a))))
-    3 (fn [o a b] (let [W+ (-wrapper o)] (-> W+ (wrap-fn o) (method a b))))))
+(defmethod compile-wrapper :default [method wrap-fn result-type]
+  (fn
+    ([o] (let [W+ (-wrapper o)] (method (wrap-fn W+ o))))
+    ([o a] (let [W+ (-wrapper o)] (method (wrap-fn W+ o) a)))
+    ([o a b] (let [W+ (-wrapper o)] (method (wrap-fn W+ o) a b)))
+    ([o a b & args] (let [W+ (-wrapper o)] (apply method (wrap-fn W+ o) a b args)))))
 
-(defmethod compile-wrapper :vertex [method arity wrap-fn result-type]
-  (case arity
-    1 (fn [o] (let [W+ (-wrapper o)] (-> W+ (wrap-fn o) method (->mV (vertex-wrapper W+)))))
-    2 (fn [o a] (let [W+ (-wrapper o)] (-> W+ (wrap-fn o) (method a) (->mV (vertex-wrapper W+)))))
-    3 (fn [o a b] (let [W+ (-wrapper o)] (-> W+ (wrap-fn o) (method a b) (->mV (vertex-wrapper W+)))))))
+(defmethod compile-wrapper :vertex [method wrap-fn result-type]
+  (fn
+    ([o] (let [W+ (-wrapper o)] (-> W+ (wrap-fn o) method (->mV (vertex-wrapper W+)))))
+    ([o a] (let [W+ (-wrapper o)] (-> W+ (wrap-fn o) (method a) (->mV (vertex-wrapper W+)))))
+    ([o a b] (let [W+ (-wrapper o)] (-> W+ (wrap-fn o) (method a b) (->mV (vertex-wrapper W+)))))
+    ([o a b & args] (let [W+ (-wrapper o)]
+                         (-> (apply method (wrap-fn W+ o) a b args) (->mV (vertex-wrapper W+)))))))
 
-(defmethod compile-wrapper [:vertex] [method arity wrap-fn result-type]
-  (case arity
-    1 (fn [o]
-        (let [W+ (-wrapper o)
-              V+ (vertex-wrapper W+)]
-          (map #(->mV % V+)
-               (-> W+ (wrap-fn o) method))))
-    2 (fn [o a]
-        (let [W+ (-wrapper o)
-              V+ (vertex-wrapper W+)]
-          (map #(->mV % V+)
-               (-> W+ (wrap-fn o) (method a)))))
-    3 (fn [o a b]
-        (let [W+ (-wrapper o)
-              V+ (vertex-wrapper W+)]
-          (map #(->mV % V+)
-               (-> W+ (wrap-fn o) (method a b)))))))
+(defmethod compile-wrapper [:vertex] [method wrap-fn result-type]
+  (fn
+    ([o]
+     (let [W+ (-wrapper o)
+           V+ (vertex-wrapper W+)]
+       (map #(->mV % V+)
+            (method (wrap-fn W+ o)))))
+    ([o a]
+     (let [W+ (-wrapper o)
+           V+ (vertex-wrapper W+)]
+       (map #(->mV % V+)
+            (method (wrap-fn W+ o) a))))
+    ([o a b]
+     (let [W+ (-wrapper o)
+           V+ (vertex-wrapper W+)]
+       (map #(->mV % V+)
+            (method (wrap-fn W+ o) a b))))
+    ([o a b & args]
+     (let [W+ (-wrapper o)
+           V+ (vertex-wrapper W+)]
+       (map #(->mV % V+)
+            (apply method (wrap-fn W+ o) a b args))))))
 
-(defmethod compile-wrapper :edge [method arity wrap-fn result-type]
-  (case arity
-    1 (fn [o] (let [W+ (-wrapper o)] (-> W+ (wrap-fn o) method (->mE (edge-wrapper W+)))))
-    2 (fn [o a] (let [W+ (-wrapper o)] (-> W+ (wrap-fn o) (method a) (->mE (edge-wrapper W+)))))
-    3 (fn [o a b] (let [W+ (-wrapper o)] (-> W+ (wrap-fn o) (method a b) (->mE (edge-wrapper W+)))))))
+(defmethod compile-wrapper :edge [method wrap-fn result-type]
+  (fn
+    ([o] (let [W+ (-wrapper o)] (-> W+ (wrap-fn o) method (->mE (edge-wrapper W+)))))
+    ([o a] (let [W+ (-wrapper o)] (-> W+ (wrap-fn o) (method a) (->mE (edge-wrapper W+)))))
+    ([o a b] (let [W+ (-wrapper o)] (-> W+ (wrap-fn o) (method a b) (->mE (edge-wrapper W+)))))
+    ([o a b & args] (let [W+ (-wrapper o)]
+                         (-> (apply method (wrap-fn W+ o) a b args) (->mE (edge-wrapper W+)))))))
 
-(defmethod compile-wrapper [:edge] [method arity wrap-fn result-type]
-  (case arity
-    1 (fn [o]
-        (let [W+ (-wrapper o)
-              E+ (edge-wrapper W+)]
-          (map #(->mE % E+)
-               (-> W+ (wrap-fn o) method))))
-    2 (fn [o a]
-        (let [W+ (-wrapper o)
-              E+ (edge-wrapper W+)]
-          (map #(->mE % E+)
-               (-> W+ (wrap-fn o) (method a)))))
-    3 (fn [o a b]
-        (let [W+ (-wrapper o)
-              E+ (edge-wrapper W+)]
-          (map #(->mE % E+)
-               (-> W+ (wrap-fn o) (method a b)))))))
+(defmethod compile-wrapper [:edge] [method wrap-fn result-type]
+  (fn
+    ([o]
+     (let [W+ (-wrapper o)
+           E+ (edge-wrapper W+)]
+       (map #(->mE % E+)
+            (method (wrap-fn W+ o)))))
+    ([o a]
+     (let [W+ (-wrapper o)
+           E+ (edge-wrapper W+)]
+       (map #(->mE % E+)
+            (method (wrap-fn W+ o) a))))
+    ([o a b]
+     (let [W+ (-wrapper o)
+           E+ (edge-wrapper W+)]
+       (map #(->mE % E+)
+            (method (wrap-fn W+ o) a b))))
+    ([o a b & args]
+     (let [W+ (-wrapper o)
+           E+ (edge-wrapper W+)]
+       (map #(->mE % E+)
+            (apply method (wrap-fn W+ o) a b args))))))
+
 
 (defn- extend-wrapped [type protocol method-specs]
-  (let [wrapped-impls (reduce (fn [wrapped-impls {:keys [method arity wrap-fn result-type]}]
-                                (assoc wrapped-impls method (compile-wrapper (resolve (symbol (name method))) arity wrap-fn result-type)))
+  (let [wrapped-impls (reduce (fn [wrapped-impls {:keys [method wrap-fn result-type]}]
+                                (assoc wrapped-impls method (compile-wrapper (resolve (symbol (name method))) wrap-fn result-type)))
                               {} method-specs)]
     (extend type
       protocol
       wrapped-impls)))
+
+;; Add extensions
 
 (defn extend-vertex
   "Extend the custom vertex type with the given protocol and method specs.

@@ -9,7 +9,7 @@
 
 (custom/wrap-fn ->kind p/Kind)
 (custom/extend-vertex p/Kind
-                      [{:method :kind :arity 1 :wrap-fn ->kind}])
+                      [{:method :kind :wrap-fn ->kind}])
 
 (deftype EExtended [edge]
   p/WeightedEdge
