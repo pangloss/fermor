@@ -154,7 +154,7 @@
 
 
 (deftest edge-flavours
-  (let [g (-> (build-graph {:edge-builder {:w fermor.graph/add-unique-weighted-edge
+  (let [g (-> (build-graph {:edge-builder {:w (fermor.graph/add-unique-weighted-edge 0.0)
                                            :p fermor.graph/add-parallel-edge}})
               (add-edges :normal [[:a :b {:k 9}]
                                   [:a :b {:x 1}]

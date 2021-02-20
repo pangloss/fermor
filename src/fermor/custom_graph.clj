@@ -27,6 +27,9 @@
   (implementor-type ^Class [w] t)
   (make-implementor [w] ->))
 
+(declare ->mE ->mV ->mForkedGraph)
+
+
 (defn wrap-graph [graph ->FImpl ->LImpl ->VImpl ->EImpl]
   ;; default type to Object which won't implement the desired interfaces so will
   ;; never trigger use of the make-implementor, without requiring any other special
@@ -44,23 +47,31 @@
        (setter target value))
     (condp satisfies? graph
       Forked (->mForkedGraph graph F+)
-      Linear graph ;; (->mLinearGraph graph L+)
+      ;; Linear (->mLinearGraph graph L+)
       Vertex (->mV graph V+)
       Edge (->mE graph E+))))
 
+(defmacro wrap-fn* [interface]
+  `(let [interface# (if (map? ~interface)
+                      (:on-interface ~interface) ;; get interface from protocol
+                      ~interface)]
+     (fn [wrapper# element#]
+       (if (.isAssignableFrom interface# (implementor-type wrapper#))
+         ((make-implementor wrapper#) element#)
+         (plain element#)))))
+
 (defmacro wrap-fn [name interface]
-  (let [interface (if (map? interface)
-                    (:on-interface interface) ;; get interface from protocol
-                    interface)])
-  `(defn ~name [wrapper# element#]
-     (prn (.isAssignableFrom ~interface (implementor-type wrapper#)))
-     (if (.isAssignableFrom ~interface (implementor-type wrapper#))
-       ((make-implementor wrapper#) element#)
-       (plain element#))))
+  `(let [interface# (if (map? ~interface)
+                     (:on-interface ~interface) ;; get interface from protocol
+                     ~interface)]
+     (defn ~name [wrapper# element#]
+       (if (.isAssignableFrom interface# (implementor-type wrapper#))
+         ((make-implementor wrapper#) element#)
+         (plain element#)))))
 
 (defmacro wrap-inline [name interface]
   `(defmacro ~name [wrapper# element#]
-     `(if (.isAssignableFrom  ~~interface (implementor-type ~wrapper#))
+     `(if (.isAssignableFrom ~~interface (implementor-type ~wrapper#))
         ((make-implementor ~wrapper#) ~element#)
         (plain ~element#))))
 
@@ -73,6 +84,7 @@
   (wrap-inline ->weight fermor.protocols.WeightedEdge)
   (wrap-inline ->label fermor.protocols.Edge)
   (wrap-inline ->edge fermor.protocols.Edge)
+  (wrap-inline ->settings fermor.protocols.Graph)
   (wrap-inline ->all-vertices fermor.protocols.Graph)
   (wrap-inline ->get-vertex fermor.protocols.Graph))
 
@@ -82,8 +94,6 @@
 (defprotocol Wrapping
   (plain [w])
   (-wrapper [w]))
-
-(declare ->mE)
 
 (deftype mV [element V+]
   Object
@@ -160,13 +170,11 @@
   (hashCode [e] (.hashCode graph))
 
   Graph
+  (-settings [g]
+    (-> F+ (->settings g) -settings))
   (all-vertices [g]
     (let [V+ (vertex-wrapper F+)]
       (map #(->mV % V+) (-> F+ (->all-vertices g) all-vertices))))
-  (all-vertices [g kind]
-    (when-let [of-kind (->of-kind F+)]
-      (->> (all-vertices g)
-           (of-kind kind))))
   (get-vertex [g id]
     (-> F+ (->get-vertex g) (get-vertex id) (->mV (vertex-wrapper F+))))
 
@@ -271,71 +279,77 @@
 
 (defmethod compile-wrapper :vertex [method wrap-fn result-type]
   (fn
-    ([o] (let [W+ (-wrapper o)] (-> W+ (wrap-fn o) method (->mV (vertex-wrapper W+)))))
-    ([o a] (let [W+ (-wrapper o)] (-> W+ (wrap-fn o) (method a) (->mV (vertex-wrapper W+)))))
-    ([o a b] (let [W+ (-wrapper o)] (-> W+ (wrap-fn o) (method a b) (->mV (vertex-wrapper W+)))))
+    ([o] (let [W+ (-wrapper o)] (some-> (method (wrap-fn W+ o)) (->mV (vertex-wrapper W+)))))
+    ([o a] (let [W+ (-wrapper o)] (some-> (->mV (method (wrap-fn W+ o) a) (vertex-wrapper W+)))))
+    ([o a b] (let [W+ (-wrapper o)] (some-> (method (wrap-fn W+ o) a b) (->mV (vertex-wrapper W+)))))
     ([o a b & args] (let [W+ (-wrapper o)]
-                         (-> (apply method (wrap-fn W+ o) a b args) (->mV (vertex-wrapper W+)))))))
+                         (some-> (apply method (wrap-fn W+ o) a b args) (->mV (vertex-wrapper W+)))))))
 
 (defmethod compile-wrapper [:vertex] [method wrap-fn result-type]
   (fn
     ([o]
      (let [W+ (-wrapper o)
            V+ (vertex-wrapper W+)]
-       (map #(->mV % V+)
+       (map #(when % (->mV % V+))
             (method (wrap-fn W+ o)))))
     ([o a]
      (let [W+ (-wrapper o)
            V+ (vertex-wrapper W+)]
-       (map #(->mV % V+)
+       (map #(when % (->mV % V+))
             (method (wrap-fn W+ o) a))))
     ([o a b]
      (let [W+ (-wrapper o)
            V+ (vertex-wrapper W+)]
-       (map #(->mV % V+)
+       (map #(when % (->mV % V+))
             (method (wrap-fn W+ o) a b))))
     ([o a b & args]
      (let [W+ (-wrapper o)
            V+ (vertex-wrapper W+)]
-       (map #(->mV % V+)
+       (map #(when % (->mV % V+))
             (apply method (wrap-fn W+ o) a b args))))))
 
 (defmethod compile-wrapper :edge [method wrap-fn result-type]
   (fn
-    ([o] (let [W+ (-wrapper o)] (-> W+ (wrap-fn o) method (->mE (edge-wrapper W+)))))
-    ([o a] (let [W+ (-wrapper o)] (-> W+ (wrap-fn o) (method a) (->mE (edge-wrapper W+)))))
-    ([o a b] (let [W+ (-wrapper o)] (-> W+ (wrap-fn o) (method a b) (->mE (edge-wrapper W+)))))
+    ([o] (let [W+ (-wrapper o)] (some-> (method (wrap-fn W+ o)) (->mE (edge-wrapper W+)))))
+    ([o a] (let [W+ (-wrapper o)] (some-> (method (wrap-fn W+ o) a) (->mE (edge-wrapper W+)))))
+    ([o a b] (let [W+ (-wrapper o)] (some-> (method (wrap-fn W+ o) a b) (->mE (edge-wrapper W+)))))
     ([o a b & args] (let [W+ (-wrapper o)]
-                         (-> (apply method (wrap-fn W+ o) a b args) (->mE (edge-wrapper W+)))))))
+                         (some-> (apply method (wrap-fn W+ o) a b args) (->mE (edge-wrapper W+)))))))
 
 (defmethod compile-wrapper [:edge] [method wrap-fn result-type]
   (fn
     ([o]
      (let [W+ (-wrapper o)
            E+ (edge-wrapper W+)]
-       (map #(->mE % E+)
+       (map #(when % (->mE % E+))
             (method (wrap-fn W+ o)))))
     ([o a]
      (let [W+ (-wrapper o)
            E+ (edge-wrapper W+)]
-       (map #(->mE % E+)
+       (map #(when % (->mE % E+))
             (method (wrap-fn W+ o) a))))
     ([o a b]
      (let [W+ (-wrapper o)
            E+ (edge-wrapper W+)]
-       (map #(->mE % E+)
+       (map #(when % (->mE % E+))
             (method (wrap-fn W+ o) a b))))
     ([o a b & args]
      (let [W+ (-wrapper o)
            E+ (edge-wrapper W+)]
-       (map #(->mE % E+)
+       (map #(when % (->mE % E+))
             (apply method (wrap-fn W+ o) a b args))))))
 
 
 (defn- extend-wrapped [type protocol method-specs]
-  (let [wrapped-impls (reduce (fn [wrapped-impls {:keys [method wrap-fn result-type]}]
-                                (assoc wrapped-impls method (compile-wrapper (resolve (symbol (name method))) wrap-fn result-type)))
-                              {} method-specs)]
+  (let [wrapped-impls (reduce (fn [wrapped-impls [method result-type]]
+                                (let [compiled (compile-wrapper (resolve (symbol (name method)))
+                                                                (wrap-fn* protocol)
+                                                                result-type)]
+                                  (assoc wrapped-impls method compiled)))
+                              ;; (:sigs protocol) have a bunch of stuff on the key but should just dispatch to :default
+                              {} (merge (reduce-kv (fn [m k v] (assoc m k nil))
+                                                   {} (:method-map protocol))
+                                        method-specs))]
     (extend type
       protocol
       wrapped-impls)))

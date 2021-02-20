@@ -239,6 +239,7 @@
     (->ForkedGraph (.put edges label edge) documents settings nil))
 
   Graph
+  (-settings [g] settings)
   (all-vertices [g]
     (->> (edge-graphs g)
          (map #(.vertices (val %)))
@@ -259,9 +260,10 @@
                    metadata)))
 
 (defn graph-settings [g]
-  (condp instance? g
-    ForkedGraph (.settings ^ForkedGraph g)
-    LinearGraph (.settings ^LinearGraph g)))
+  (if (satisfies? Graph g)
+    (-settings g)
+    (when (instance? LinearGraph g)
+      (.settings ^LinearGraph g))))
 
 (defn document-equality? [g]
   (:document-equality? (graph-settings g)))
