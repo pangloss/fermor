@@ -42,6 +42,9 @@
 (defprotocol Kind
   (kind [v]))
 
+(defprotocol WeightedEdge
+  (-weight [e]))
+
 (defprotocol Linear
   (to-forked [x]))
 

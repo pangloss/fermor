@@ -11,8 +11,8 @@
   (linear-graph-wrapper [w])
   (edge-wrapper [w])
   (vertex-wrapper [w])
-  (wrapper-type ^Class [w])
-  (constructor [w]))
+  (implementor-type ^Class [w])
+  (make-implementor [w]))
 
 (deftype Wrapper [t -> ^:unsynchronized-mutable F ^:unsynchronized-mutable L ^:unsynchronized-mutable V ^:unsynchronized-mutable E]
   IWrapper
@@ -24,22 +24,21 @@
   (linear-graph-wrapper [w] L)
   (edge-wrapper [w] E)
   (vertex-wrapper [w] V)
-  (wrapper-type ^Class [w] t)
-  ;; this is wrong
-  (constructor [w] ->))
+  (implementor-type ^Class [w] t)
+  (make-implementor [w] ->))
 
-(defn wrap-graph [graph ->F ->L ->V ->E]
+(defn wrap-graph [graph ->FImpl ->LImpl ->VImpl ->EImpl]
   ;; default type to Object which won't implement the desired interfaces so will
-  ;; never trigger use of the constructor, without requiring any other special
+  ;; never trigger use of the make-implementor, without requiring any other special
   ;; conditional logic.
-  (let [WrappedForkedGraphType (if ->F (type (->F nil)) Object)
-        WrappedLinearGraphType (if ->L (type (->L nil)) Object)
-        WrappedVertexType (if ->V (type (->V nil)) Object)
-        WrappedEdgeType (if ->E (type (->E nil)) Object)
-        F+ (Wrapper. WrappedForkedGraphType ->F nil nil nil nil)
-        L+ (Wrapper. WrappedLinearGraphType ->L nil nil nil nil)
-        E+ (Wrapper. WrappedEdgeType ->E nil nil nil nil)
-        V+ (Wrapper. WrappedVertexType ->V nil nil nil nil)]
+  (let [ForkedGraphImplType (if ->FImpl (type (->FImpl nil)) Object)
+        LinearGraphImplType (if ->LImpl (type (->LImpl nil)) Object)
+        VertexImplType (if ->VImpl (type (->VImpl nil)) Object)
+        EdgeImplType (if ->EImpl (type (->EImpl nil)) Object)
+        F+ (Wrapper. ForkedGraphImplType ->FImpl nil nil nil nil)
+        L+ (Wrapper. LinearGraphImplType ->LImpl nil nil nil nil)
+        E+ (Wrapper. EdgeImplType ->EImpl nil nil nil nil)
+        V+ (Wrapper. VertexImplType ->VImpl nil nil nil nil)]
     (doseq [[setter value] [[set-E! E+] [set-V! V+] [set-F! F+] [set-L! L+]]
             target [E+ V+ F+ L+]]
        (setter target value))
@@ -49,23 +48,21 @@
       Vertex (->mV graph V+)
       Edge (->mE graph E+))))
 
-(defmacro wrap-fn
-  ([name interface]
-   `(defn ~name [wrapper# element#]
-      (if (.isAssignableFrom ~interface (wrapper-type wrapper#))
-        ((constructor wrapper#) element#)
-        element#)))
-  ([name interface mini-wrapper]
-   `(defn ~name [wrapper# element#]
-      (if (.isAssignableFrom ~interface (wrapper-type wrapper#))
-        (mini-wrapper element#)
-        element#))))
+(defmacro wrap-fn [name interface]
+  (let [interface (if (map? interface)
+                    (:on-interface interface) ;; get interface from protocol
+                    interface)])
+  `(defn ~name [wrapper# element#]
+     (prn (.isAssignableFrom ~interface (implementor-type wrapper#)))
+     (if (.isAssignableFrom ~interface (implementor-type wrapper#))
+       ((make-implementor wrapper#) element#)
+       (plain element#))))
 
 (defmacro wrap-inline [name interface]
   `(defmacro ~name [wrapper# element#]
-     `(if (.isAssignableFrom  ~~interface (wrapper-type ~wrapper#))
-        ((constructor ~wrapper#) ~element#)
-        ~element#)))
+     `(if (.isAssignableFrom  ~~interface (implementor-type ~wrapper#))
+        ((make-implementor ~wrapper#) ~element#)
+        (plain ~element#))))
 
 (do
   ;; NOTE: if any of these give problems, switch to wrap-fn to debug.
@@ -94,10 +91,10 @@
   (hashCode [e] (.hashCode element))
 
   Element
-  (element-id [v] (-> V+ (->element-id element) element-id))
-  (get-graph [v] (-> V+ (->get-graph element) get-graph))
-  (get-document [v] (-> V+ (->get-document element) get-document))
-  (get-document [v key] (-> V+ (->get-document element) (get-document key)))
+  (element-id [v] (-> V+ (->element-id v) element-id))
+  (get-graph [v] (-> V+ (->get-graph v) get-graph))
+  (get-document [v] (-> V+ (->get-document v) get-document))
+  (get-document [v key] (-> V+ (->get-document v) (get-document key)))
 
   Wrappable
   (-unwrap [e] (-unwrap element))
@@ -110,27 +107,27 @@
   (-out-edges [v]
     (let [E+ (edge-wrapper V+)]
       (map #(->mE % E+)
-           (-> V+ (->vertex element) -out-edges))))
+           (-> V+ (->vertex v) -out-edges))))
   (-out-edges [v labels]
     (let [E+ (edge-wrapper V+)]
       (map #(->mE % E+)
-           (-> V+ (->vertex element) (-out-edges labels)))))
+           (-> V+ (->vertex v) (-out-edges labels)))))
   (-out-edges [v _ prepared-labels]
     (let [E+ (edge-wrapper V+)]
       (map #(->mE % E+)
-           (-> V+ (->vertex element) (-out-edges _ prepared-labels)))))
+           (-> V+ (->vertex v) (-out-edges _ prepared-labels)))))
   (-in-edges [v]
     (let [E+ (edge-wrapper V+)]
       (map #(->mE % E+)
-           (-> V+ (->vertex element) -in-edges))))
+           (-> V+ (->vertex v) -in-edges))))
   (-in-edges [v labels]
     (let [E+ (edge-wrapper V+)]
       (map #(->mE % E+)
-           (-> V+ (->vertex element) (-in-edges labels)))))
+           (-> V+ (->vertex v) (-in-edges labels)))))
   (-in-edges [v _ prepared-labels]
     (let [E+ (edge-wrapper V+)]
       (map #(->mE % E+)
-           (-> V+ (->vertex element) (-in-edges _ prepared-labels))))))
+           (-> V+ (->vertex v) (-in-edges _ prepared-labels))))))
 
 (deftype mE [element E+]
   Object
@@ -138,9 +135,9 @@
   (hashCode [e] (.hashCode element))
 
   Element
-  (element-id [v] (-> E+ (->element-id element) element-id))
-  (get-graph [e] (-> E+ (->get-graph element) get-graph))
-  (get-document [e] (-> E+ (->get-document element) get-document))
+  (element-id [e] (-> E+ (->element-id e) element-id))
+  (get-graph [e] (-> E+ (->get-graph e) get-graph))
+  (get-document [e] (-> E+ (->get-document e) get-document))
 
   Wrappable
   (-unwrap [e] (-unwrap element))
@@ -150,12 +147,12 @@
   (-wrapper [w] E+)
 
   WeightedEdge
-  (-weight [e] (-> E+ (->weight element) -weight))
+  (-weight [e] (-> E+ (->weight e) -weight))
 
   Edge
-  (-label [e] (-> E+ (->label element) -label))
-  (in-vertex [e] (-> E+ (->edge element) in-vertex (->mV (vertex-wrapper E+))))
-  (out-vertex [e] (-> E+ (->edge element) out-vertex (->mV (vertex-wrapper E+)))))
+  (-label [e] (-> E+ (->label e) -label))
+  (in-vertex [e] (-> E+ (->edge e) in-vertex (->mV (vertex-wrapper E+))))
+  (out-vertex [e] (-> E+ (->edge e) out-vertex (->mV (vertex-wrapper E+)))))
 
 (deftype mForkedGraph [graph F+]
   Object
@@ -165,13 +162,13 @@
   Graph
   (all-vertices [g]
     (let [V+ (vertex-wrapper F+)]
-      (map #(->mV % V+) (-> F+ (->all-vertices graph) all-vertices))))
+      (map #(->mV % V+) (-> F+ (->all-vertices g) all-vertices))))
   (all-vertices [g kind]
     (when-let [of-kind (->of-kind F+)]
       (->> (all-vertices g)
            (of-kind kind))))
   (get-vertex [g id]
-    (-> F+ (->get-vertex graph) (get-vertex id) (->mV (vertex-wrapper F+))))
+    (-> F+ (->get-vertex g) (get-vertex id) (->mV (vertex-wrapper F+))))
 
   Wrapping
   (plain [w] graph)
@@ -229,21 +226,13 @@
                    metadata)))
 
 (defmethod print-method mE [^mE e ^java.io.Writer w]
-  (print-method (-unwrap e) w))
+  (print-method (plain e) w))
 
 (defmethod simple-dispatch mE [o]
   (print-method o *out*))
 
 (defmethod print-method mV [e ^java.io.Writer w]
-  (.write w "(V ")
-  (print-method (:kind (element-id e)) w)
-  (.write w " ")
-  (print-method (:id (element-id e)) w)
-  (when-not *compact-vertex-printing*
-    (when-let [p (get-document e)]
-      (.write w " ")
-      (print-method p w)))
-  (.write w ")"))
+  (print-method (plain e) w))
 
 (defmethod simple-dispatch mV [o]
   (print-method o *out*))
@@ -329,7 +318,7 @@
 
 (defn- extend-wrapped [type protocol method-specs]
   (let [wrapped-impls (reduce (fn [wrapped-impls {:keys [method arity wrap-fn result-type]}]
-                                (assoc wrapped-impls method (compile-wrapper method arity wrap-fn result-type)))
+                                (assoc wrapped-impls method (compile-wrapper (resolve (symbol (name method))) arity wrap-fn result-type)))
                               {} method-specs)]
     (extend type
       protocol
@@ -346,16 +335,3 @@
 
 (defn extend-edge [protocol method-specs]
   (extend-wrapped mE protocol method-specs))
-
-;; Example
-
-
-;; NOTE: this must be the interface that backs the protocol
-(wrap-fn ->kind fermor.protocols.Kind)
-
-(deftype VKind [vertex]
-  Kind
-  (kind [v] (:kind (element-id vertex))))
-
-(extend-vertex Kind
-               {:method kind :arity 1 :wrap-fn ->kind})
