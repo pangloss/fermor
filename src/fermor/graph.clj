@@ -417,19 +417,19 @@
   Vertex
   ;; TODO specialize 4 edge types with combinations of vertex id and vertex obj for in and out. Eliminate extra wrappers.
   (-out-edges [v]
-    (--out-edges v nil (labels (.graph v))))
+    (--out-edges v (labels (.graph v))))
   (-out-edges [v labels]
-    (--out-edges v nil labels))
+    (--out-edges v labels))
   (-out-edges [v _ labels]
     ;; this specialization will be make more sense when/if I bring back abstract label support. More useful for neo4j, etc.
-    (--out-edges v nil labels))
+    (--out-edges v labels))
 
   (-in-edges [^V v]
-    (--in-edges v nil (labels (.graph v))))
+    (--in-edges v (labels (.graph v))))
   (-in-edges [^V v labels]
-    (--in-edges v nil labels))
+    (--in-edges v labels))
   (-in-edges [^V v _ labels]
-    (--in-edges v nil labels))
+    (--in-edges v labels))
 
   Element
   (element-id [e] id)
@@ -454,7 +454,7 @@
   (when-let [edge (edge-graph (-unwrap graph) label)]
     (map #(->V graph % nil nil) (.vertices edge))))
 
-(defn- --out-edges [^V v _ labels]
+(defn- --out-edges [^V v labels]
   (mapcat (fn [label]
             (when-let [edge (edge-graph (.graph v) label)]
               (when (edges-with-label? v label edge)
@@ -462,7 +462,7 @@
                      (.out edge (.id v))))))
           labels))
 
-(defn- --in-edges [^V v _ labels]
+(defn- --in-edges [^V v labels]
   (mapcat (fn [label]
             (when-let [edge (edge-graph (.graph v) label)]
               (when (edges-with-label? v label edge)
