@@ -52,8 +52,8 @@
   loom/WeightedGraph
   (weight* [g e]
     (if e
-      (or (get-document e) 1)
-      ##Inf))
+      (or (get-document e) (:weight/nil (-wrapper-settings (-wrapper graph))))
+      (:weight/no-edge (-wrapper-settings (-wrapper graph)))))
   (weight* [g n1 n2]
     (loom/weight* g (some #(-get-edge graph % (to-id n1) (to-id n2))
                           (use-labels graph))))
@@ -130,7 +130,10 @@
   ([g]
    (as-loom-graph g {}))
   ([g settings]
-   (let [settings (merge {:edge-labels [:loom]} settings)]
+   (let [settings (merge {:edge-labels [:loom]
+                          :weight/nil 1
+                          :weight/no-edge ##Inf}
+                         settings)]
      (custom/wrap-graph g settings ->LoomGraph ->LoomEditableGraph nil ->LoomEdge))))
 
 (require 'fermor.core)
@@ -140,7 +143,9 @@
                             (add-edges :xyz [[:c :d]])
                             (add-vertices [[:a {:info "ok!"}]])
                             forked)
-                        {:edge-labels [:loom :xyz]}))
+                        {:edge-labels [:loom :xyz]
+                         :weight/nil 9
+                         :weight/no-edge 33}))
   (loom/successors* g :a)
   (loom/out-degree g :a)
   (loom/out-edges g :a)
@@ -148,7 +153,9 @@
   (loom/in-degree g :b)
   (loom/in-edges g :b)
 
+  (loom/weight* g :a :b)
   (loom/weight* g :c :d)
+  (loom/weight* g :a :d)
   (loom.attr/attrs g :a :b)
   (loom.attr/attrs g :a :b)
 
