@@ -74,7 +74,7 @@
   (remove-attr [g n1 n2 k]         "Remove an attribute from a node or edge")
   (attr [g node-or-edge k] (some-> (loom.attr/attrs g node-or-edge) (get k)))
   (attr [g n1 n2 k] (some-> (loom.attr/attrs g n1 n2) (get k)))
-  (attrs [g node-or-edge] (get-document node-or-edge))
+  (attrs [g node-or-edge] (get-document (to-e graph node-or-edge)))
   (attrs [g n1 n2] (some-> (some #(-get-edge graph % (to-id n1) (to-id n2)) (use-labels graph))
                            get-document))
 
