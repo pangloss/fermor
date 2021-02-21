@@ -1,6 +1,7 @@
 (ns fermor.loom-graph
   (:use fermor.protocols)
   (:require [loom.graph :as loom]
+            loom.attr
             [fermor.graph :refer [forked linear]]
             [fermor.custom-graph :as custom]))
 
@@ -40,16 +41,35 @@
       (-weight e)
       ##Inf))
   (weight* [g n1 n2]
-    (loom/weight* g (some #(= n2 (in-vertex %)) (-out-edges n1 *edge-labels*)))))
+    (loom/weight* g (some #(= n2 (in-vertex %)) (-out-edges n1 *edge-labels*))))
+
+  loom.attr/AttrGraph
+  (attr [g node-or-edge k] (some-> (loom.attr/attrs g node-or-edge) (get k)))
+  (attr [g n1 n2 k] (some-> (loom.attr/attrs g n1 n2) (get k)))
+  (attrs [g node-or-edge] (get-document node-or-edge))
+  (attrs [g n1 n2] (some-> (some #(-get-edge graph % (to-id n1) (to-id n2)) *edge-labels*)
+                           get-document)))
 
 (deftype LoomEditableGraph [graph]
   ;; TODO
+  loom.attr/AttrGraph
+  (add-attr [g node-or-edge k v]   "Add an attribute to node or edge")
+  (add-attr [g n1 n2 k v]          "Add an attribute to node or edge")
+  (remove-attr [g node-or-edge k]  "Remove an attribute from a node or edge")
+  (remove-attr [g n1 n2 k]         "Remove an attribute from a node or edge")
+  (attr [g node-or-edge k] (some-> (loom.attr/attrs g node-or-edge) (get k)))
+  (attr [g n1 n2 k] (some-> (loom.attr/attrs g n1 n2) (get k)))
+  (attrs [g node-or-edge] (get-document node-or-edge))
+  (attrs [g n1 n2] (some-> (some #(-get-edge graph % (to-id n1) (to-id n2)) *edge-labels*)
+                           get-document))
+
   loom/EditableGraph
-  (add-nodes* [g nodes] "Add nodes to graph g. See add-nodes")
-  (add-edges* [g edges] "Add edges to graph g. See add-edges")
+  (add-nodes* [g nodes]    "Add nodes to graph g. See add-nodes")
+  (add-edges* [g edges]    "Add edges to graph g. See add-edges")
   (remove-nodes* [g nodes] "Remove nodes from graph g. See remove-nodes")
   (remove-edges* [g edges] "Removes edges from graph g. See remove-edges")
-  (remove-all [g] "Removes all nodes and edges from graph g"))
+  (remove-all [g]          "Removes all nodes and edges from graph g"))
+
 
 (deftype LoomEdge [edge]
   loom/Edge
