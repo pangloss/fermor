@@ -4,6 +4,17 @@
             [fermor.descend :refer [*no-result-interval* *cut-no-results* *no-results* cut-no-results value-for-no-results
                                     continue-no-results]]))
 
+(deftest edges-are-eq
+  (let [g (-> (fermor.core/graph)
+              (add-edges :loom [[:a :b 4]])
+              (add-edges :xyz [[:c :d]])
+              (add-edges :nope [[:d :b]])
+              (add-vertices [[:a {:info "ok!"}]])
+              forked)]
+    (is (= [(e<- :a :loom [4] :b)] [(e-> :a :loom [4] :b)]))
+    (is (= [(e-> :a :loom [4] :b)] [(e<- :a :loom [4] :b)]))))
+
+
 (deftest extrude-basic-descend-calls
   (testing "finite"
     (is (= [2]

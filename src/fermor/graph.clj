@@ -67,6 +67,9 @@
       o
       (->LinearGraph edges documents settings m)))
 
+  GraphSettings
+  (-settings [g] settings)
+
   clojure.lang.IMeta
   (meta [o] metadata)
 
@@ -209,12 +212,14 @@
    (-add-vertices graph [[id document]])))
 
 (extend LinearGraph
-  MutableGraph
+  AddEdge
   {:add-edge #'-add-edge
-   :add-edges #'-add-edges
-   :add-vertices #'-add-vertices
-   :add-vertex #'-add-vertex
-   :set-document #'-add-vertex})
+   :add-edges #'-add-edges}
+  AddVertex
+  {:add-vertices #'-add-vertices
+   :add-vertex #'-add-vertex}
+  SetDocument
+  {:set-document #'-add-vertex})
 
 (declare edge-graphs)
 
@@ -229,9 +234,11 @@
       o
       (->ForkedGraph edges documents settings m)))
 
-  GraphContents
+  HasVertexDocument
   (-has-vertex-document? [g id]
     (not (.isEmpty (.get documents id))))
+
+  HasVertex
   (-has-vertex? [g id labels]
     (reduce (fn [_ label]
               (when-let [edge (._getEdgeGraph g label)]
@@ -274,13 +281,19 @@
     (->ForkedGraph (.put edges label edge) documents settings nil))
 
   Graph
+
+  GraphSettings
   (-settings [g] settings)
+
+  AllVertices
   (all-vertices [g]
     (->> (edge-graphs g)
          (map #(.vertices (val %)))
          (apply concat)
          distinct
          (map #(->V g % nil nil))))
+
+  GetVertex
   (get-vertex [g id]
     (->V g id nil nil))
 
@@ -295,10 +308,8 @@
                    metadata)))
 
 (defn graph-settings [g]
-  (if (satisfies? Graph g)
-    (-settings g)
-    (when (instance? LinearGraph g)
-      (.settings ^LinearGraph g))))
+  (if (satisfies? GraphSettings g)
+    (-settings g)))
 
 (defn document-equality? [g]
   (:document-equality? (graph-settings g)))
@@ -319,14 +330,15 @@
 
 (deftype E [label out-v in-v ^:unsynchronized-mutable ^java.util.Optional document used-forward metadata]
   Object
-  (equals [a b] (let [b (-unwrap b)]
-                  (and (instance? E b)
-                       (= label (-label b))
-                       (= out-v (out-vertex b))
-                       (= in-v (in-vertex b))
-                       (if (document-equality? (get-graph a))
-                         (= document (get-document b))
-                         true))))
+  (equals [a b]
+    (let [b (-unwrap b)]
+      (and (instance? E b)
+           (= label (-label b))
+           (= out-v (out-vertex b))
+           (= in-v (in-vertex b))
+           (if (document-equality? (get-graph a))
+             (= document (get-document b))
+             true))))
 
   (hashCode [e] (hash-combine (hash label) (hash-combine (hash out-v) (hash in-v))))
 
@@ -349,10 +361,16 @@
   Element
   (element-id [e] nil)
   (get-graph [e] (get-graph out-v))
+
+  GetDocument
   (get-document [e] (-get-edge-document e))
 
   Edge
+
+  EdgeLabel
   (-label [e] label)
+
+  EdgeVertices
   (out-vertex [e] out-v)
   (in-vertex [e] in-v)
 
@@ -414,6 +432,8 @@
   (_getDocument ^java.util.Optional [e] document)
   (_setDocument [e ^java.util.Optional p] (set! document p) e)
 
+  Vertex ;; marker
+
   VertexEdges
   ;; TODO specialize 4 edge types with combinations of vertex id and vertex obj for in and out. Eliminate extra wrappers.
   (-out-edges [v]
@@ -435,6 +455,8 @@
   Element
   (element-id [e] id)
   (get-graph [e] graph)
+
+  GetDocument
   (get-document [e]
     (if document
       (when-not (.isEmpty document)
@@ -528,7 +550,7 @@
    (->E label (v out-id) (v in-id) (Optional/ofNullable document) true nil)))
 
 (defn e<-
-  ([in-id label out-id]
+  ([out-id label in-id]
    (->E label (v out-id) (v in-id) nil false nil))
-  ([in-id label [document] out-id]
+  ([out-id label [document] in-id]
    (->E label (v out-id) (v in-id) (Optional/ofNullable document) false nil)))

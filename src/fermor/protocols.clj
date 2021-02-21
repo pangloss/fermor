@@ -54,14 +54,22 @@
 (defprotocol ISubpath
   (-subpath [x from-end] [x from-end length]))
 
-(defprotocol Graph
-  (-settings [g])
-  (all-vertices [g] [g kind])
-  (get-vertex [g id] [g kind id] "Find a vertex by ID. See also parse-vertex-id."))
+(defprotocol Graph)
 
-(defprotocol GraphContents
+(defprotocol GraphSettings
+  (-settings [g]))
+
+(defprotocol AllVertices
+  (all-vertices [g] [g kind]))
+
+(defprotocol GetVertex
+  (get-vertex [g id] [g kind id] "Find a vertex by ID. See also parse-vertex-id. By default does not check that the vertex exists. See `-has-vertex?`"))
+
+(defprotocol HasVertexDocument
   (-has-vertex-document? [g id]
-    "Return true if a vertex with the given id has a document attached.")
+    "Return true if a vertex with the given id has a document attached."))
+
+(defprotocol HasVertex
   (-has-vertex? [g id] [g id labels]
     "Return true if the vertex is present in the graph. Optionally restrict the
     search to vertices that have edges with specific labels."))
@@ -74,14 +82,16 @@
 (defprotocol GraphTranspose
   (-transpose [g] [g labels]))
 
-(defprotocol MutableGraph
+(defprotocol AddVertex
   (add-vertices [g id-document-pairs]
     "The second best way to add multiple vertices to a graph after `add-edges`,
     but this way allows you to associate a document to the vertex.")
   (add-vertex
     [g id]
     [g id document]
-    "Add a vertex. If `document` is provided, attach it to the vertex as well.")
+    "Add a vertex. If `document` is provided, attach it to the vertex as well."))
+
+(defprotocol AddEdge
   (add-edge
     [g label out-v in-v]
     [g label out-v in-v document]
@@ -89,7 +99,9 @@
   (add-edges
     [g label pairs]
     [g label edge-type pairs]
-    "Add a edges between each pair of vertices in `pairs`.")
+    "Add a edges between each pair of vertices in `pairs`."))
+
+(defprotocol SetDocument
   (set-document [g element value]
     "Reset an element's document to a new value, replacing the old value.
 
@@ -102,8 +114,12 @@
 
 (defprotocol Element
   (element-id [e] "Return the id of the given vertex or edge.")
-  (get-graph [e] "Return the graph the element is part of.")
+  (get-graph [e] "Return the graph the element is part of."))
+
+(defprotocol GetDocument
   (get-document [e] [e k] "Get the document object for the element."))
+
+(defprotocol Vertex)
 
 (defprotocol VertexEdges
   (-out-edges [v]
@@ -119,8 +135,12 @@
   (-out-edges-prepared [v labels])
   (-in-edges-prepared [v labels]))
 
-(defprotocol Edge
-  (-label [e] "Return the edge label.")
+(defprotocol Edge)
+
+(defprotocol EdgeLabel
+  (-label [e] "Return the edge label."))
+
+(defprotocol EdgeVertices
   (in-vertex [e] "Return the in vertex of the edge (in)-->(out).")
   (out-vertex [e] "Return the out vertex of the edge (in)-->(out)."))
 

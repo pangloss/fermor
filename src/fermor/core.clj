@@ -2,7 +2,9 @@
   (:require [conditions :refer [condition manage lazy-conditions error default]]
             [potemkin :refer [import-vars]]
             [flatland.ordered.set :refer [ordered-set]]
-            [fermor.protocols :as proto :refer [-out-edges -in-edges traversed-forward -label -unwrap Wrappable]]
+            [fermor.protocols :as proto :refer [Wrappable -out-edges -in-edges
+                                                traversed-forward -label -unwrap
+                                                -out-edges-prepared -in-edges-prepared]]
             [fermor.descend :refer [*descend *descents extrude *no-result-interval*]]
             fermor.graph
             [fermor.kind-graph :refer [->KGraph]]

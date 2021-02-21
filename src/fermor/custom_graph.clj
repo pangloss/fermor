@@ -85,16 +85,17 @@
   (wrap-inline ->vertex-edges-prepared fermor.protocols.VertexEdgesPrepared)
   (wrap-inline ->element-id fermor.protocols.Element)
   (wrap-inline ->get-graph fermor.protocols.Element)
-  (wrap-inline ->get-document fermor.protocols.Element)
+  (wrap-inline ->get-document fermor.protocols.GetDocument)
   (wrap-inline ->weight fermor.protocols.WeightedEdge)
-  (wrap-inline ->label fermor.protocols.Edge)
-  (wrap-inline ->edge fermor.protocols.Edge)
-  (wrap-inline ->settings fermor.protocols.Graph)
-  (wrap-inline ->all-vertices fermor.protocols.Graph)
-  (wrap-inline ->get-vertex fermor.protocols.Graph)
+  (wrap-inline ->label fermor.protocols.EdgeLabel)
+  (wrap-inline ->edge-vertices fermor.protocols.EdgeVertices)
+  (wrap-inline ->settings fermor.protocols.GraphSettings)
+  (wrap-inline ->all-vertices fermor.protocols.AllVertices)
+  (wrap-inline ->get-vertex fermor.protocols.GetVertex)
   (wrap-inline ->to-linear fermor.protocols.Forked)
   (wrap-inline ->to-forked fermor.protocols.Linear)
-  (wrap-inline ->graph-contents fermor.protocols.GraphContents)
+  (wrap-inline ->has-vertex-document fermor.protocols.HasVertexDocument)
+  (wrap-inline ->has-vertex fermor.protocols.HasVertex)
   (wrap-inline ->get-edge fermor.protocols.GetEdge)
   (wrap-inline ->transpose fermor.protocols.GraphTranspose))
 
@@ -113,6 +114,8 @@
   Element
   (element-id [v] (-> V+ (->element-id v) element-id))
   (get-graph [v] (-> V+ (->get-graph v) get-graph))
+
+  GetDocument
   (get-document [v] (-> V+ (->get-document v) get-document))
   (get-document [v key] (-> V+ (->get-document v) (get-document key)))
 
@@ -122,6 +125,8 @@
   Wrapping
   (plain [w] element)
   (-wrapper [w] V+)
+
+  Vertex
 
   VertexEdges
   (-out-edges [v]
@@ -142,12 +147,12 @@
            (-> V+ (->vertex-edges v) (-in-edges labels)))))
 
   VertexEdgesPrepared
-  (-out-edges [v prepared-labels]
+  (-out-edges-prepared [v prepared-labels]
     (let [E+ (edge-wrapper V+)]
       (map #(->mE % E+)
            (-> (->vertex-edges-prepared V+ v)
                (-out-edges-prepared prepared-labels)))))
-  (-in-edges [v prepared-labels]
+  (-in-edges-prepared [v prepared-labels]
     (let [E+ (edge-wrapper V+)]
       (map #(->mE % E+)
            (-> (->vertex-edges-prepared V+ v)
@@ -161,6 +166,8 @@
   Element
   (element-id [e] (-> E+ (->element-id e) element-id))
   (get-graph [e] (-> E+ (->get-graph e) get-graph))
+
+  GetDocument
   (get-document [e] (-> E+ (->get-document e) get-document))
 
   Wrappable
@@ -174,9 +181,13 @@
   (-weight [e] (-> E+ (->weight e) -weight))
 
   Edge
+
+  EdgeLabel
   (-label [e] (-> E+ (->label e) -label))
-  (in-vertex [e] (-> E+ (->edge e) in-vertex (->mV (vertex-wrapper E+))))
-  (out-vertex [e] (-> E+ (->edge e) out-vertex (->mV (vertex-wrapper E+)))))
+
+  EdgeVertices
+  (in-vertex [e] (-> E+ (->edge-vertices e) in-vertex (->mV (vertex-wrapper E+))))
+  (out-vertex [e] (-> E+ (->edge-vertices e) out-vertex (->mV (vertex-wrapper E+)))))
 
 (deftype mForkedGraph [graph F+]
   Object
@@ -184,21 +195,29 @@
   (hashCode [e] (.hashCode graph))
 
   Graph
+
+  GraphSettings
   (-settings [g]
     (-> F+ (->settings g) -settings))
+
+  AllVertices
   (all-vertices [g]
     (let [V+ (vertex-wrapper F+)]
       (map #(->mV % V+) (-> F+ (->all-vertices g) all-vertices))))
+
+  GetVertex
   (get-vertex [g id]
     (some-> (get-vertex (->get-vertex F+ g) id) (->mV (vertex-wrapper F+))))
 
-  GraphContents
+  HasVertexDocument
   (-has-vertex-document? [g id]
-    (-> F+ (->graph-contents g) (-has-vertex-document? id)))
+    (-> F+ (->has-vertex-document g) (-has-vertex-document? id)))
+
+  HasVertex
   (-has-vertex? [g id labels]
-    (-> F+ (->graph-contents g) (-has-vertex? id labels)))
+    (-> F+ (->has-vertex g) (-has-vertex? id labels)))
   (-has-vertex? [g id]
-    (-> F+ (->graph-contents g) (-has-vertex? id)))
+    (-> F+ (->has-vertex g) (-has-vertex? id)))
 
   GetEdge
   (-get-edge [g label from-id to-id]

@@ -43,29 +43,35 @@
   Element
   (element-id [v] (element-id (.element v)))
   (get-graph [v] (get-graph (.element v)))
+
+  GetDocument
   (get-document [v key] (get-document (.element v) key))
 
   Wrappable
   (-unwrap [e] (-unwrap (.element e)))
 
   Vertex
+
+  VertexEdges
   (-out-edges [v]
     (->> (-out-edges element)
          (map #(->PEdge % v nil))))
   (-out-edges [v labels]
     (->> (-out-edges element labels)
          (map #(->PEdge % v nil))))
-  (-out-edges [v _ prepared-labels]
-     (->> (-out-edges element _ prepared-labels)
-          (map #(->PEdge % v nil))))
   (-in-edges [v]
     (->> (-in-edges element)
          (map #(->PEdge % v nil))))
   (-in-edges [v labels]
     (->> (-in-edges element labels)
          (map #(->PEdge % v nil))))
-  (-in-edges [v _ prepared-labels]
-    (->> (-in-edges element _ prepared-labels)
+
+  VertexEdgesPrepared
+  (-out-edges-prepared [v prepared-labels]
+    (->> (-out-edges-prepared element prepared-labels)
+         (map #(->PEdge % v nil))))
+  (-in-edges-prepared [v prepared-labels]
+    (->> (-in-edges-prepared element prepared-labels)
          (map #(->PEdge % v nil))))
 
   Path
@@ -90,6 +96,8 @@
   Element
   (element-id [e] (element-id (.element e)))
   (get-graph [e] (get-graph (.element e)))
+
+  GetDocument
   (get-document [e]
     (get-document (.element e)))
 
@@ -97,7 +105,11 @@
   (-unwrap [e] (-unwrap (.element e)))
 
   Edge
+
+  EdgeLabel
   (-label [e] (-label (.element e)))
+
+  EdgeVertices
   (in-vertex [e] (PVertex. (in-vertex (.element e)) e nil))
   (out-vertex [e] (PVertex. (out-vertex (.element e)) e nil))
 
@@ -122,6 +134,10 @@
   (meta [o] metadata)
 
   Graph
+
+  GraphSettings
+  (-settings [g] (-settings graph))
+
   Wrappable
   (-unwrap [g] (-unwrap graph)))
 

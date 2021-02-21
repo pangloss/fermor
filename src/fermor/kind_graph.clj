@@ -4,6 +4,11 @@
             [clojure.pprint :refer [simple-dispatch]])
   (:import (fermor.protocols KindId)))
 
+;; NOTE: the kind-graph was created before custom-graph and is fairly pointless
+;; as a standalone graph with almost no delta from the base graph type. It
+;; should probably be switched over to a simple custom graph instead, pending
+;; performance testing of the custom graph.
+
 (declare ->KEdge)
 
 (deftype KVertex [element]
@@ -14,6 +19,8 @@
   Element
   (element-id ^KindId [v] (element-id element))
   (get-graph [v] (get-graph element))
+
+  GetDocument
   (get-document [v key] (get-document element key))
 
   Kind
@@ -52,13 +59,17 @@
   Element
   (element-id [e] (element-id element))
   (get-graph [e] (get-graph element))
+
+  GetDocument
   (get-document [e] (get-document element))
 
   Wrappable
   (-unwrap [e] (-unwrap element))
 
   Edge
+  EdgeLabel
   (-label [e] (-label element))
+  EdgeVertices
   (in-vertex [e] (KVertex. (in-vertex element)))
   (out-vertex [e] (KVertex. (out-vertex element))))
 
@@ -74,11 +85,18 @@
   (hashCode [e] (.hashCode graph))
 
   Graph
+
+  GraphSettings
+  (-settings [g] (-settings graph))
+
+  AllVertices
   (all-vertices [g]
     (map ->KVertex (all-vertices graph)))
   (all-vertices [g kind]
     (->> (all-vertices g)
          (of-kind kind)))
+
+  GetVertex
   (get-vertex [g kind-id]
     (->KVertex (->V (-unwrap g) kind-id nil nil)))
   (get-vertex [g kind id]
