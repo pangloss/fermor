@@ -235,7 +235,8 @@
   (-has-vertex? [g id labels]
     (reduce (fn [_ label]
               (when-let [edge (._getEdgeGraph g label)]
-                (reduced (.isPresent (.indexOf edge id)))))
+                (when (.isPresent (.indexOf edge id))
+                  (reduced true))))
             false labels))
   (-has-vertex? [g id]
     (or (-has-vertex-document? g id)
@@ -244,11 +245,12 @@
   GetEdge
   (-get-edge [g label from-id to-id]
     (when-let [edge (._getEdgeGraph g label)]
-      (try (->E label (->V g from-id) (->V g to-id)
-                (Optional/of (.edge edge from-id to-id))
-                false nil)
-           (catch IllegalArgumentException e
-             false))))
+      (try
+        (->E label (->V g from-id nil nil) (->V g to-id nil nil)
+             (Optional/ofNullable (.edge edge from-id to-id))
+             true nil)
+        (catch IllegalArgumentException e
+          nil))))
 
   clojure.lang.IMeta
   (meta [o] metadata)

@@ -2,52 +2,67 @@
   (:use fermor.protocols)
   (:require [loom.graph :as loom]
             loom.attr
-            [fermor.graph :refer [forked linear]]
-            [fermor.custom-graph :as custom]))
-
-(def ^:dynamic *edge-labels* [:loom])
+            [fermor.graph :refer [vertices-with-edge forked linear]]
+            [fermor.custom-graph :as custom :refer [-wrapper -wrapper-settings]]
+            [fermor.core :as g]))
 
 (defn- to-id [node]
   (if (vertex? node)
     (element-id node)
     node))
 
+(defn- to-v [g node]
+  (if (vertex? node)
+    node
+    (get-vertex g node)))
+
+(defn- to-e [g element]
+  (if (or (vertex? element) (edge? element))
+    element
+    (get-vertex g element)))
+
+(defn- use-labels [x]
+  (-> x -wrapper -wrapper-settings :edge-labels))
+
 (deftype LoomGraph [graph]
   loom/Graph
-  (nodes [g] (all-vertices graph))
+  (nodes [g]
+    (mapcat #(vertices-with-edge graph %) (use-labels graph)))
   (edges [g]
-    (mapcat #(-out-edges % *edge-labels*)
+    (mapcat #(-out-edges % (use-labels graph))
             (all-vertices graph)))
   (has-node? [g node]
-    (or (-has-vertex-document? g (to-id node))
-        (-has-vertex? g (to-id node) *edge-labels*)))
+    (or (-has-vertex-document? graph (to-id node))
+        (-has-vertex? graph (to-id node) (use-labels graph))))
   (has-edge? [g n1 n2]
     (reduce (fn [_ label]
-              (boolean (-get-edge g label (to-id n1) (to-id n2))))
-            false *edge-labels*))
-  (successors* [g node] (map in-vertex (-out-edges node *edge-labels*)))
-  (out-degree [g node] (count (-out-edges node *edge-labels*)))
-  (out-edges [g node] (-out-edges node *edge-labels*))
+              (when-let [x (-get-edge graph label (to-id n1) (to-id n2))]
+                (reduced true)))
+            false (use-labels graph)))
+  (successors* [g node] (map in-vertex (-out-edges (to-v graph node) (use-labels graph))))
+  (out-degree [g node] (count (-out-edges (to-v graph node) (use-labels graph))))
+  (out-edges [g node] (-out-edges (to-v graph node) (use-labels graph)))
 
   loom/Digraph
-  (predecessors* [g node] (map out-vertex (-in-edges node *edge-labels*)))
-  (in-degree [g node] (count (-in-edges node *edge-labels*)))
-  (in-edges [g node] (-in-edges node *edge-labels*))
-  (transpose [g] (forked (-transpose (linear g) *edge-labels*)))
+  (predecessors* [g node] (map out-vertex (-in-edges (to-v graph node) (use-labels graph))))
+  (in-degree [g node] (count (-in-edges (to-v graph node) (use-labels graph))))
+  (in-edges [g node] (-in-edges (to-v graph node) (use-labels graph)))
+  (transpose [g] (forked (-transpose (linear graph) (use-labels graph))))
 
   loom/WeightedGraph
   (weight* [g e]
     (if e
-      (-weight e)
+      (or (get-document e) 1)
       ##Inf))
   (weight* [g n1 n2]
-    (loom/weight* g (some #(= n2 (in-vertex %)) (-out-edges n1 *edge-labels*))))
+    (loom/weight* g (some #(-get-edge graph % (to-id n1) (to-id n2))
+                          (use-labels graph))))
 
   loom.attr/AttrGraph
   (attr [g node-or-edge k] (some-> (loom.attr/attrs g node-or-edge) (get k)))
   (attr [g n1 n2 k] (some-> (loom.attr/attrs g n1 n2) (get k)))
-  (attrs [g node-or-edge] (get-document node-or-edge))
-  (attrs [g n1 n2] (some-> (some #(-get-edge graph % (to-id n1) (to-id n2)) *edge-labels*)
+  (attrs [g node-or-edge] (get-document (to-e graph node-or-edge)))
+  (attrs [g n1 n2] (some-> (some #(-get-edge graph % (to-id n1) (to-id n2)) (use-labels graph))
                            get-document)))
 
 (deftype LoomEditableGraph [graph]
@@ -60,8 +75,11 @@
   (attr [g node-or-edge k] (some-> (loom.attr/attrs g node-or-edge) (get k)))
   (attr [g n1 n2 k] (some-> (loom.attr/attrs g n1 n2) (get k)))
   (attrs [g node-or-edge] (get-document node-or-edge))
-  (attrs [g n1 n2] (some-> (some #(-get-edge graph % (to-id n1) (to-id n2)) *edge-labels*)
+  (attrs [g n1 n2] (some-> (some #(-get-edge graph % (to-id n1) (to-id n2)) (use-labels graph))
                            get-document))
+
+  loom/Digraph
+  (transpose [g] (-transpose g (use-labels graph)))
 
   loom/EditableGraph
   (add-nodes* [g nodes]    "Add nodes to graph g. See add-nodes")
@@ -78,31 +96,75 @@
 
 ;; Add shims to the custom graph to support the loom protocols:
 
-(custom/extend-edge
- loom/Edge {:src :vertex
-            :dest :vertex})
-(custom/extend-forked-graph
- loom/Graph {:nodes [:vertex]
-             :edges [:edge]
-             :successors* [:vertex]
-             :out-edges [:edge]})
-(custom/extend-forked-graph
- loom/Digraph {:predecessors* [:vertex]
-               :in-edges [:edge]
-               :transpose :forked-graph})
-(custom/extend-forked-graph
- loom/WeightedGraph {})
+(do
+  (custom/extend-edge
+   loom/Edge {:src :vertex
+              :dest :vertex})
+  (custom/extend-forked-graph
+   loom/Graph {:nodes [:vertex]
+               :edges [:edge]
+               :successors* [:vertex]
+               :out-edges [:edge]})
+  (custom/extend-forked-graph
+   loom/Digraph {:predecessors* [:vertex]
+                 :in-edges [:edge]
+                 :transpose :forked-graph})
+  (custom/extend-forked-graph
+   loom/WeightedGraph {})
+  (custom/extend-forked-graph
+   loom.attr/AttrGraph {})
 
-(custom/extend-linear-graph
- loom/EditableGraph {:add-nodes* :linear-graph
-                     :add-edges* :linear-graph
-                     :remove-nodes* :linear-graph
-                     :remove-edges* :linear-graph
-                     :remove-all :linear-graph})
+  (custom/extend-linear-graph
+   loom.attr/AttrGraph {})
+  (custom/extend-linear-graph
+   loom/EditableGraph {:add-nodes* :linear-graph
+                       :add-edges* :linear-graph
+                       :remove-nodes* :linear-graph
+                       :remove-edges* :linear-graph
+                       :remove-all :linear-graph}))
 
 ;; Wrap a forked graph as a loom graph
 
 (defn as-loom-graph
   "Wrap a graph in the Loom protocols to enable fermor graphs to be used with the Loom algos."
-  [g]
-  (custom/wrap-graph g ->LoomGraph ->LoomEditableGraph nil ->LoomEdge))
+  ([g]
+   (as-loom-graph g {}))
+  ([g settings]
+   (let [settings (merge {:edge-labels [:loom]} settings)]
+     (custom/wrap-graph g settings ->LoomGraph ->LoomEditableGraph nil ->LoomEdge))))
+
+(require 'fermor.core)
+(comment
+  (def g (as-loom-graph (-> (fermor.core/graph)
+                            (add-edges :loom [[:a :b 4]])
+                            (add-edges :xyz [[:c :d]])
+                            (add-vertices [[:a {:info "ok!"}]])
+                            forked)
+                        {:edge-labels [:loom :xyz]}))
+  (loom/successors* g :a)
+  (loom/out-degree g :a)
+  (loom/out-edges g :a)
+  (loom/predecessors* g :b)
+  (loom/in-degree g :b)
+  (loom/in-edges g :b)
+
+  (loom/weight* g :c :d)
+  (loom.attr/attrs g :a :b)
+  (loom.attr/attrs g :a :b)
+
+  (loom/nodes g)
+  (loom/edges g)
+  (loom/edges (loom/transpose g))
+  (loom/has-node? g :a)
+  (loom/has-node? g :b)
+  (loom/has-node? g :c)
+  (loom/has-node? g :d)
+  (loom/has-node? g :e)
+  (loom/has-edge? g :a :b)
+  (loom/has-edge? g :a :c)
+  (loom/has-edge? g :a :x)
+
+
+
+  ,)
+

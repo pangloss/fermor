@@ -39,12 +39,13 @@
   ;; conditional logic.
   (let [ForkedGraphImplType (if ->FImpl (type (->FImpl nil)) Object)
         LinearGraphImplType (if ->LImpl (type (->LImpl nil)) Object)
-        VertexImplType (if ->VImpl (type (->VImpl nil)) Object)
-        EdgeImplType (if ->EImpl (type (->EImpl nil)) Object)
-        F+ (Wrapper. settings ForkedGraphImplType ->FImpl nil nil nil nil)
-        L+ (Wrapper. settings LinearGraphImplType ->LImpl nil nil nil nil)
-        E+ (Wrapper. settings EdgeImplType ->EImpl nil nil nil nil)
-        V+ (Wrapper. settings VertexImplType ->VImpl nil nil nil nil)]
+        VertexImplType      (if ->VImpl (type (->VImpl nil)) Object)
+        EdgeImplType        (if ->EImpl (type (->EImpl nil)) Object)
+        no-wrapper (fn [x _] x)
+        F+ (Wrapper. settings ForkedGraphImplType (or ->FImpl no-wrapper) nil nil nil nil)
+        L+ (Wrapper. settings LinearGraphImplType (or ->LImpl no-wrapper) nil nil nil nil)
+        E+ (Wrapper. settings EdgeImplType (or ->EImpl no-wrapper) nil nil nil nil)
+        V+ (Wrapper. settings VertexImplType (or ->VImpl no-wrapper) nil nil nil nil)]
     (doseq [[setter value] [[set-E! E+] [set-V! V+] [set-F! F+] [set-L! L+]]
             target [E+ V+ F+ L+]]
        (setter target value))
@@ -52,7 +53,7 @@
       Forked (->mForkedGraph graph F+)
       Linear (->mLinearGraph graph L+)
       Vertex (->mV graph V+)
-      Edge (->mE graph E+))))
+      Edge   (->mE graph E+))))
 
 (defmacro wrap-fn* [interface]
   `(let [interface# (if (map? ~interface)
@@ -91,7 +92,10 @@
   (wrap-inline ->all-vertices fermor.protocols.Graph)
   (wrap-inline ->get-vertex fermor.protocols.Graph)
   (wrap-inline ->to-linear fermor.protocols.Forked)
-  (wrap-inline ->to-forked fermor.protocols.Linear))
+  (wrap-inline ->to-forked fermor.protocols.Linear)
+  (wrap-inline ->graph-contents fermor.protocols.GraphContents)
+  (wrap-inline ->get-edge fermor.protocols.GetEdge)
+  (wrap-inline ->transpose fermor.protocols.GraphTranspose))
 
 (comment (macroexpand '(->vertex 'element 'V+)))
 
@@ -181,7 +185,20 @@
     (let [V+ (vertex-wrapper F+)]
       (map #(->mV % V+) (-> F+ (->all-vertices g) all-vertices))))
   (get-vertex [g id]
-    (-> F+ (->get-vertex g) (get-vertex id) (->mV (vertex-wrapper F+))))
+    (some-> (get-vertex (->get-vertex F+ g) id) (->mV (vertex-wrapper F+))))
+
+  GraphContents
+  (-has-vertex-document? [g id]
+    (-> F+ (->graph-contents g) (-has-vertex-document? id)))
+  (-has-vertex? [g id labels]
+    (-> F+ (->graph-contents g) (-has-vertex? id labels)))
+  (-has-vertex? [g id]
+    (-> F+ (->graph-contents g) (-has-vertex? id)))
+
+  GetEdge
+  (-get-edge [g label from-id to-id]
+    (some-> (-get-edge (->get-edge F+ g) label from-id to-id)
+            (->mE (edge-wrapper F+))))
 
   Wrapping
   (plain [w] graph)
@@ -215,6 +232,12 @@
   Wrapping
   (plain [w] graph)
   (-wrapper [w] L+)
+
+  GraphTranspose
+  (-transpose [g]
+    (-> L+ (->transpose g) -transpose (->mLinearGraph L+)))
+  (-transpose [g labels]
+    (-> L+ (->transpose g) (-transpose labels) (->mLinearGraph L+)))
 
   Linear
   (to-forked [g]
@@ -345,7 +368,7 @@
 
 (defn- extend-wrapped [type protocol method-specs]
   (let [wrapped-impls (reduce (fn [wrapped-impls [method result-type]]
-                                (let [compiled (compile-wrapper (resolve (symbol (name method)))
+                                (let [compiled (compile-wrapper (ns-resolve (.ns (:var protocol)) (symbol (name method)))
                                                                 (wrap-fn* protocol)
                                                                 result-type)]
                                   (assoc wrapped-impls method compiled)))
