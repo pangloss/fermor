@@ -386,8 +386,6 @@
   ([to-parent from-parent r]
    (group-siblings (comp from-parent to-parent) r)))
 
-(declare join)
-
 (defn siblings
   "Note the stated use case for this is replaced by the much more elegant
   `go-on` / `go-back` and related methods.
@@ -400,9 +398,9 @@
    to-parent and from-parent are functions that when combined will traverse from source to dest."
   {:deprecated "pre-release"} ;; deprecated pending finding a real use case.
   ([get-siblings r]
-   (join (group-siblings get-siblings r)))
+   (apply concat (group-siblings get-siblings r)))
   ([to-parent from-parent r]
-   (join (group-siblings to-parent from-parent r))))
+   (apply concat (group-siblings to-parent from-parent r))))
 
 (defn make-pairs
   "Map each element in r to a pair of [element (f element)]."
@@ -434,11 +432,6 @@
   ([coll r] [(into coll r)]))
 
 (defn spread
-  "Turn a collection of collections back into a single lazy stream. See also: merge-round-robin."
-  [r]
-  (apply concat r))
-
-(defn join
   "Turn a collection of collections back into a single lazy stream. See also: merge-round-robin."
   [r]
   (apply concat r))
@@ -1028,7 +1021,9 @@
             (ensure-seq coll)))))
 
 (defn group-count
-  "Return a map of {item count-equal-items} or {(f item) count-equal}"
+  "Return a map of {item count-equal-items} or {(f item) count-equal}.
+
+  Arity 1 is basically identical to `frequencies`."
   ([coll]
    (persistent!
     (reduce (fn [r item]
