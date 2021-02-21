@@ -1,8 +1,10 @@
 (ns fermor.custom-graph
   (:use fermor.protocols)
-  (:require [clojure.pprint :refer [simple-dispatch]]))
+  (:require [clojure.pprint :refer [simple-dispatch]]
+            fermor.graph))
 
 (defprotocol IWrapper
+  (-wrapper-settings [w])
   (set-F! [w f])
   (set-L! [w l])
   (set-E! [w e])
@@ -14,8 +16,9 @@
   (implementor-type ^Class [w])
   (make-implementor [w]))
 
-(deftype Wrapper [t -> ^:unsynchronized-mutable F ^:unsynchronized-mutable L ^:unsynchronized-mutable V ^:unsynchronized-mutable E]
+(deftype Wrapper [settings t -> ^:unsynchronized-mutable F ^:unsynchronized-mutable L ^:unsynchronized-mutable V ^:unsynchronized-mutable E]
   IWrapper
+  (-wrapper-settings [w] settings)
   (set-F! [w f] (set! F f))
   (set-L! [w l] (set! L l))
   (set-E! [w e] (set! E e))
@@ -27,10 +30,10 @@
   (implementor-type ^Class [w] t)
   (make-implementor [w] ->))
 
-(declare ->mE ->mV ->mForkedGraph)
+(declare ->mE ->mV ->mForkedGraph ->mLinearGraph)
 
 
-(defn wrap-graph [graph ->FImpl ->LImpl ->VImpl ->EImpl]
+(defn wrap-graph [graph settings ->FImpl ->LImpl ->VImpl ->EImpl]
   ;; default type to Object which won't implement the desired interfaces so will
   ;; never trigger use of the make-implementor, without requiring any other special
   ;; conditional logic.
@@ -38,16 +41,16 @@
         LinearGraphImplType (if ->LImpl (type (->LImpl nil)) Object)
         VertexImplType (if ->VImpl (type (->VImpl nil)) Object)
         EdgeImplType (if ->EImpl (type (->EImpl nil)) Object)
-        F+ (Wrapper. ForkedGraphImplType ->FImpl nil nil nil nil)
-        L+ (Wrapper. LinearGraphImplType ->LImpl nil nil nil nil)
-        E+ (Wrapper. EdgeImplType ->EImpl nil nil nil nil)
-        V+ (Wrapper. VertexImplType ->VImpl nil nil nil nil)]
+        F+ (Wrapper. settings ForkedGraphImplType ->FImpl nil nil nil nil)
+        L+ (Wrapper. settings LinearGraphImplType ->LImpl nil nil nil nil)
+        E+ (Wrapper. settings EdgeImplType ->EImpl nil nil nil nil)
+        V+ (Wrapper. settings VertexImplType ->VImpl nil nil nil nil)]
     (doseq [[setter value] [[set-E! E+] [set-V! V+] [set-F! F+] [set-L! L+]]
             target [E+ V+ F+ L+]]
        (setter target value))
     (condp satisfies? graph
       Forked (->mForkedGraph graph F+)
-      ;; Linear (->mLinearGraph graph L+)
+      Linear (->mLinearGraph graph L+)
       Vertex (->mV graph V+)
       Edge (->mE graph E+))))
 
@@ -86,7 +89,9 @@
   (wrap-inline ->edge fermor.protocols.Edge)
   (wrap-inline ->settings fermor.protocols.Graph)
   (wrap-inline ->all-vertices fermor.protocols.Graph)
-  (wrap-inline ->get-vertex fermor.protocols.Graph))
+  (wrap-inline ->get-vertex fermor.protocols.Graph)
+  (wrap-inline ->to-linear fermor.protocols.Forked)
+  (wrap-inline ->to-forked fermor.protocols.Linear))
 
 (comment (macroexpand '(->vertex 'element 'V+)))
 
@@ -184,9 +189,12 @@
 
   Wrappable
   (-unwrap [g]
-    (-unwrap graph)))
+    (-unwrap graph))
 
-#_
+  Forked
+  (to-linear [g]
+    (-> F+ (->to-linear g) to-linear (->mLinearGraph (linear-graph-wrapper F+)))))
+
 ;; I'm not sure if this is needed and need to look closely at the behavior of
 ;; these internal components to figure out the wrapping story. so for now the
 ;; LinearGraph wrapper won't work even though it's defined above.
@@ -201,37 +209,16 @@
   ;;     o
   ;;     (->mLinearGraph edges documents settings m)))
 
-  clojure.lang.IMeta
-  (meta [o] (-> L+ (->meta graph) metadata))
+  ;; clojure.lang.IMeta
+  ;; (meta [o] (-> L+ (->meta graph) metadata))
 
   Wrapping
   (plain [w] graph)
   (-wrapper [w] L+)
 
-  IEdgeGraphs
-  (_getLabels ^clojure.lang.IPersistentVector [g]
-    (vec (.keys edges)))
-  (_getEdgeGraph ^IGraph [g label]
-    (let [x (.get edges label)]
-      (when-not (.isEmpty x)
-        (.get x))))
-  (_removeEdgeGraph ^ILabelGraphs [g label]
-    (let [x (.get edges label)]
-      (if (.isEmpty x)
-        g
-        (->LinearGraph (.remove edges label) documents settings nil))))
-  (_addEdgeGraph ^ILabelGraphs [g label ^IGraph edge]
-    (->LinearGraph (.put edges label edge) documents settings nil))
-
   Linear
   (to-forked [g]
-    (->ForkedGraph (.forked (.mapValues edges
-                                        (reify BiFunction
-                                          (apply [this k v]
-                                            (.forked ^IGraph v)))))
-                   (.forked documents)
-                   settings
-                   metadata)))
+    (-> L+ (->to-forked g) to-forked (->mForkedGraph (forked-graph-wrapper L+)))))
 
 (defmethod print-method mE [^mE e ^java.io.Writer w]
   (print-method (plain e) w))
@@ -276,6 +263,22 @@
     ([o a] (let [W+ (-wrapper o)] (method (wrap-fn W+ o) a)))
     ([o a b] (let [W+ (-wrapper o)] (method (wrap-fn W+ o) a b)))
     ([o a b & args] (let [W+ (-wrapper o)] (apply method (wrap-fn W+ o) a b args)))))
+
+(defmethod compile-wrapper :forked-graph [method wrap-fn result-type]
+  (fn
+    ([o] (let [W+ (-wrapper o)] (some-> (method (wrap-fn W+ o)) (->mForkedGraph (forked-graph-wrapper W+)))))
+    ([o a] (let [W+ (-wrapper o)] (some-> (->mForkedGraph (method (wrap-fn W+ o) a) (forked-graph-wrapper W+)))))
+    ([o a b] (let [W+ (-wrapper o)] (some-> (method (wrap-fn W+ o) a b) (->mForkedGraph (forked-graph-wrapper W+)))))
+    ([o a b & args] (let [W+ (-wrapper o)]
+                      (some-> (apply method (wrap-fn W+ o) a b args) (->mForkedGraph (forked-graph-wrapper W+)))))))
+
+(defmethod compile-wrapper :linear-graph [method wrap-fn result-type]
+  (fn
+    ([o] (let [W+ (-wrapper o)] (some-> (method (wrap-fn W+ o)) (->mLinearGraph (linear-graph-wrapper W+)))))
+    ([o a] (let [W+ (-wrapper o)] (some-> (->mLinearGraph (method (wrap-fn W+ o) a) (linear-graph-wrapper W+)))))
+    ([o a b] (let [W+ (-wrapper o)] (some-> (method (wrap-fn W+ o) a b) (->mLinearGraph (linear-graph-wrapper W+)))))
+    ([o a b & args] (let [W+ (-wrapper o)]
+                      (some-> (apply method (wrap-fn W+ o) a b args) (->mLinearGraph (linear-graph-wrapper W+)))))))
 
 (defmethod compile-wrapper :vertex [method wrap-fn result-type]
   (fn
@@ -367,3 +370,9 @@
 
 (defn extend-edge [protocol method-specs]
   (extend-wrapped mE protocol method-specs))
+
+(defn extend-forked-graph [protocol method-specs]
+  (extend-wrapped mForkedGraph protocol method-specs))
+
+(defn extend-linear-graph [protocol method-specs]
+  (extend-wrapped mLinearGraph protocol method-specs))

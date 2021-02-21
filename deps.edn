@@ -6,4 +6,4 @@
            pangloss/pure-conditioning   {:local/root "../conditions"}}
  :aliases {:test     {:extra-paths ["test"]
                       :jvm-opts ["-XX:-OmitStackTraceInFastThrow"]
-                      :extra-deps  {}}}}
+                      :extra-deps  {aysylu/loom {:mvn/version "1.0.2"}}}}}

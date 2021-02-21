@@ -59,6 +59,21 @@
   (all-vertices [g] [g kind])
   (get-vertex [g id] [g kind id] "Find a vertex by ID. See also parse-vertex-id."))
 
+(defprotocol GraphContents
+  (-has-vertex-document? [g id]
+    "Return true if a vertex with the given id has a document attached.")
+  (-has-vertex? [g id] [g id labels]
+    "Return true if the vertex is present in the graph. Optionally restrict the
+    search to vertices that have edges with specific labels."))
+
+(defprotocol GetEdge
+  (-get-edge [g label from-id to-id]
+    "If the graph contains an edge between a pair of vertex ids with the given
+    label, return it."))
+
+(defprotocol GraphTranspose
+  (-transpose [g] [g labels]))
+
 (defprotocol MutableGraph
   (add-vertices [g id-document-pairs]
     "The second best way to add multiple vertices to a graph after `add-edges`,

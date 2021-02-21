@@ -85,6 +85,18 @@
   (_addEdgeGraph ^ILabelGraphs [g label ^IGraph edge]
     (->LinearGraph (.put edges label edge) documents settings nil))
 
+  GraphTranspose
+  (-transpose [g]
+    (-transpose g (._getLabels g)))
+  (-transpose [g labels]
+    (LinearGraph. (reduce (fn [^IMap edges label]
+                            (if-let [edge (._getEdgeGraph g label)]
+                              (.put edges label (.transpose edge))
+                              edges))
+                          (.linear (Map.))
+                          labels)
+                  documents settings nil))
+
   Linear
   (to-forked [g]
     (->ForkedGraph (.forked (.mapValues edges
@@ -216,6 +228,27 @@
     (if (= m metadata)
       o
       (->ForkedGraph edges documents settings m)))
+
+  GraphContents
+  (-has-vertex-document? [g id]
+    (not (.isEmpty (.get documents id))))
+  (-has-vertex? [g id labels]
+    (reduce (fn [_ label]
+              (when-let [edge (._getEdgeGraph g label)]
+                (reduced (.isPresent (.indexOf edge id)))))
+            false labels))
+  (-has-vertex? [g id]
+    (or (-has-vertex-document? g id)
+        (-has-vertex? g id (._getLabels g))))
+
+  GetEdge
+  (-get-edge [g label from-id to-id]
+    (when-let [edge (._getEdgeGraph g label)]
+      (try (->E label (->V g from-id) (->V g to-id)
+                (Optional/of (.edge edge from-id to-id))
+                false nil)
+           (catch IllegalArgumentException e
+             false))))
 
   clojure.lang.IMeta
   (meta [o] metadata)
