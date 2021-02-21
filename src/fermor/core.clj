@@ -116,12 +116,12 @@
    (lazy-seq
     (let [r (ensure-seq r)]
       ;; (let [labels (-prepare-labels (route-graph r) labels)]
-      (map #(traversal % nil labels) r))))
+      (map #(traversal % labels) r))))
   ([f traversal labels r]
    (lazy-seq
     (let [r (ensure-seq r)]
       ;; (let [labels (-prepare-labels (route-graph r) labels)]
-      (map #(f (traversal % nil labels)) r)))))
+      (map #(f (traversal % labels)) r)))))
 
 (defn in-e*
   "Returns a lazy seq of lazy seqs of edges.
@@ -138,12 +138,12 @@
    (cond
      (vertex? r) [(-in-edges r (ensure-seq labels))]
      (nil? r) nil
-     :else (fast-traversal -in-edges (ensure-seq labels) r)))
+     :else (fast-traversal -in-edges-prepared (ensure-seq labels) r)))
   ([f labels r]
    (cond
      (vertex? r) [(f (-in-edges r (ensure-seq labels)))]
      (nil? r) nil
-     :else (fast-traversal f -in-edges (ensure-seq labels) r))))
+     :else (fast-traversal f -in-edges-prepared (ensure-seq labels) r))))
 
 (defn in-e
   "Returns a lazy seq of edges.
@@ -170,12 +170,12 @@
    (cond
      (vertex? r) [(-out-edges r (ensure-seq labels))]
      (nil? r) nil
-     :else (fast-traversal -out-edges (ensure-seq labels) r)))
+     :else (fast-traversal -out-edges-prepared (ensure-seq labels) r)))
   ([f labels r]
    (cond
      (vertex? r) [(f (-out-edges r (ensure-seq labels)))]
      (nil? r) nil
-     :else (fast-traversal f -out-edges (ensure-seq labels) r))))
+     :else (fast-traversal f -out-edges-prepared (ensure-seq labels) r))))
 
 (defn out-e
   "Returns a lazy seq of edges.
@@ -207,7 +207,7 @@
        [(concat (-in-edges r labels) (-out-edges r labels))])
      (nil? r) nil
      :else
-     (fast-traversal (fn [v _ l] (concat (-in-edges v nil l) (-out-edges v nil l)))
+     (fast-traversal (fn [v l] (concat (-in-edges-prepared v l) (-out-edges-prepared v l)))
                      (ensure-seq labels)
                      r)))
   ([f labels r]
@@ -217,7 +217,7 @@
        (nil? r) nil
        :else
        (fast-traversal f
-                       (fn [v _ l] (concat (-in-edges v nil l) (-out-edges v nil l)))
+                       (fn [v l] (concat (-in-edges-prepared v l) (-out-edges-prepared v l)))
                        labels
                        r)))))
 

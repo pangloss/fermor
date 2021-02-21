@@ -22,24 +22,26 @@
   Wrappable
   (-unwrap [e] (-unwrap element))
 
-  Vertex
+  VertexEdges
   (-out-edges [v]
     (->> (-out-edges element)
          (map ->KEdge)))
   (-out-edges [v labels]
     (->> (-out-edges element labels)
          (map ->KEdge)))
-  (-out-edges [v _ prepared-labels]
-     (->> (-out-edges element _ prepared-labels)
-          (map ->KEdge)))
   (-in-edges [v]
     (->> (-in-edges element)
          (map ->KEdge)))
   (-in-edges [v labels]
     (->> (-in-edges element labels)
          (map ->KEdge)))
-  (-in-edges [v _ prepared-labels]
-    (->> (-in-edges element _ prepared-labels)
+
+  VertexEdgesPrepared
+  (-out-edges-prepared [v prepared-labels]
+    (->> (-out-edges-prepared element prepared-labels)
+         (map ->KEdge)))
+  (-in-edges-prepared [v prepared-labels]
+    (->> (-in-edges-prepared element prepared-labels)
          (map ->KEdge))))
 
 (deftype KEdge [element]

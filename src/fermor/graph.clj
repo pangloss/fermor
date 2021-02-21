@@ -414,21 +414,22 @@
   (_getDocument ^java.util.Optional [e] document)
   (_setDocument [e ^java.util.Optional p] (set! document p) e)
 
-  Vertex
+  VertexEdges
   ;; TODO specialize 4 edge types with combinations of vertex id and vertex obj for in and out. Eliminate extra wrappers.
   (-out-edges [v]
     (--out-edges v (labels (.graph v))))
   (-out-edges [v labels]
-    (--out-edges v labels))
-  (-out-edges [v _ labels]
-    ;; this specialization will be make more sense when/if I bring back abstract label support. More useful for neo4j, etc.
     (--out-edges v labels))
 
   (-in-edges [^V v]
     (--in-edges v (labels (.graph v))))
   (-in-edges [^V v labels]
     (--in-edges v labels))
-  (-in-edges [^V v _ labels]
+
+  VertexEdgesPrepared
+  (-out-edges-prepared [v labels]
+    (--out-edges v labels))
+  (-in-edges-prepared [^V v labels]
     (--in-edges v labels))
 
   Element

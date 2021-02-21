@@ -105,15 +105,19 @@
   (get-graph [e] "Return the graph the element is part of.")
   (get-document [e] [e k] "Get the document object for the element."))
 
-(defprotocol Vertex
+(defprotocol VertexEdges
   (-out-edges [v]
     [v labels]
-    [v _ labels]
     "Return a lazy seq of edges out of the vertex. Labels is a collection of strings.")
   (-in-edges [v]
     [v labels]
-    [v _ labels]
     "Return a lazy seq of edges in to the vertex. Labels is a collection of strings."))
+
+(defprotocol VertexEdgesPrepared
+  "This specialization will be make more sense when/if I bring back abstract
+  label support. More useful for neo4j, etc."
+  (-out-edges-prepared [v labels])
+  (-in-edges-prepared [v labels]))
 
 (defprotocol Edge
   (-label [e] "Return the edge label.")

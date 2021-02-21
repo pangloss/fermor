@@ -81,7 +81,8 @@
 
 (do
   ;; NOTE: if any of these give problems, switch to wrap-fn to debug.
-  (wrap-inline ->vertex fermor.protocols.Vertex)
+  (wrap-inline ->vertex-edges fermor.protocols.VertexEdges)
+  (wrap-inline ->vertex-edges-prepared fermor.protocols.VertexEdgesPrepared)
   (wrap-inline ->element-id fermor.protocols.Element)
   (wrap-inline ->get-graph fermor.protocols.Element)
   (wrap-inline ->get-document fermor.protocols.Element)
@@ -97,7 +98,7 @@
   (wrap-inline ->get-edge fermor.protocols.GetEdge)
   (wrap-inline ->transpose fermor.protocols.GraphTranspose))
 
-(comment (macroexpand '(->vertex 'element 'V+)))
+(comment (macroexpand '(->vertex-edges 'element 'V+)))
 
 
 (defprotocol Wrapping
@@ -122,31 +123,35 @@
   (plain [w] element)
   (-wrapper [w] V+)
 
-  Vertex
+  VertexEdges
   (-out-edges [v]
     (let [E+ (edge-wrapper V+)]
       (map #(->mE % E+)
-           (-> V+ (->vertex v) -out-edges))))
+           (-> V+ (->vertex-edges v) -out-edges))))
   (-out-edges [v labels]
     (let [E+ (edge-wrapper V+)]
       (map #(->mE % E+)
-           (-> V+ (->vertex v) (-out-edges labels)))))
-  (-out-edges [v _ prepared-labels]
-    (let [E+ (edge-wrapper V+)]
-      (map #(->mE % E+)
-           (-> V+ (->vertex v) (-out-edges _ prepared-labels)))))
+           (-> V+ (->vertex-edges v) (-out-edges labels)))))
   (-in-edges [v]
     (let [E+ (edge-wrapper V+)]
       (map #(->mE % E+)
-           (-> V+ (->vertex v) -in-edges))))
+           (-> V+ (->vertex-edges v) -in-edges))))
   (-in-edges [v labels]
     (let [E+ (edge-wrapper V+)]
       (map #(->mE % E+)
-           (-> V+ (->vertex v) (-in-edges labels)))))
-  (-in-edges [v _ prepared-labels]
+           (-> V+ (->vertex-edges v) (-in-edges labels)))))
+
+  VertexEdgesPrepared
+  (-out-edges [v prepared-labels]
     (let [E+ (edge-wrapper V+)]
       (map #(->mE % E+)
-           (-> V+ (->vertex v) (-in-edges _ prepared-labels))))))
+           (-> (->vertex-edges-prepared V+ v)
+               (-out-edges-prepared prepared-labels)))))
+  (-in-edges [v prepared-labels]
+    (let [E+ (edge-wrapper V+)]
+      (map #(->mE % E+)
+           (-> (->vertex-edges-prepared V+ v)
+               (-in-edges-prepared prepared-labels))))))
 
 (deftype mE [element E+]
   Object
