@@ -18,7 +18,7 @@
                                ;; Graph
                                get-vertex all-vertices
                                ;; MutableGraph
-                               add-vertices add-vertex add-edge add-edges set-document
+                               add-vertices add-edges set-documents
                                ;; Element
                                element-id get-document
                                ;; Edge
@@ -45,6 +45,22 @@
    (build-graph))
   ([x]
    (proto/graph x)))
+
+(defn add-edge
+  "Add an edge from v to in-v with the given label string."
+  ([graph label out-v in-v]
+   (add-edges graph label [[out-v in-v]]))
+  ([graph label out-v in-v document]
+   (add-edges graph label [[out-v in-v document]])))
+
+(defn add-vertex
+  ([graph id]
+   (add-vertices graph [[id nil]]))
+  ([graph id document]
+   (add-vertices graph [[id document]])))
+
+(defn set-document [graph id document]
+  (set-documents graph [[id document]]))
 
 (defn ensure-seq
   "Returns either nil or something sequential."

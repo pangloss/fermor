@@ -65,10 +65,6 @@
 (defprotocol GetVertex
   (get-vertex [g id] [g kind id] "Find a vertex by ID. See also parse-vertex-id. By default does not check that the vertex exists. See `-has-vertex?`"))
 
-(defprotocol HasVertexDocument
-  (-has-vertex-document? [g id]
-    "Return true if a vertex with the given id has a document attached."))
-
 (defprotocol HasVertex
   (-has-vertex? [g id] [g id labels]
     "Return true if the vertex is present in the graph. Optionally restrict the
@@ -82,26 +78,15 @@
 (defprotocol GraphTranspose
   (-transpose [g] [g labels]))
 
-(defprotocol AddVertex
+(defprotocol AddVertices
   (add-vertices [g id-document-pairs]
     "The second best way to add multiple vertices to a graph after `add-edges`,
-    but this way allows you to associate a document to the vertex.")
-  (add-vertex
-    [g id]
-    [g id document]
-    "Add a vertex. If `document` is provided, attach it to the vertex as well."))
+    but this way allows you to associate a document to the vertex."))
 
 (defprotocol RemoveVertices
   (remove-vertices [g vertices]))
 
-(defprotocol RemoveDocuments
-  (remove-documents [g elements]))
-
-(defprotocol AddEdge
-  (add-edge
-    [g label out-v in-v]
-    [g label out-v in-v document]
-    "Add an edge from v to in-v with the given label string.")
+(defprotocol AddEdges
   (add-edges
     [g label pairs]
     [g label edge-type pairs]
@@ -110,13 +95,30 @@
 (defprotocol RemoveEdges
   (remove-edges [g edges]))
 
-(defprotocol SetDocument
-  (set-document [g element value]
+(defprotocol HasDocument
+  (has-document? [element]
+    "Return true if the element has a document attached."))
+
+(defprotocol GetDocument
+  (get-document [e] [e k] "Get the document object for the element."))
+
+(defprotocol SetDocuments
+  (set-documents [g element-value-pairs]
     "Reset an element's document to a new value, replacing the old value.
 
      Note that you can use a map for the document to achieve the typical document set
      attached to an element. Using atoms for the document or anything else you like
-     is also possible."))
+     is also possible.
+
+     Mutation must happen against the graph rather than the element being
+     changed due to the structure of immutable graphs."))
+
+(defprotocol RemoveDocuments
+  (remove-documents [g elements]
+    "Remove the document associated with each of the given elements
+
+     Mutation must happen against the graph rather than the element being
+     changed due to the structure of immutable graphs."))
 
 (defprotocol Wrappable
   (-unwrap [x] "Recursively remove wrapper classes until it's an original"))
@@ -124,9 +126,6 @@
 (defprotocol Element
   (element-id [e] "Return the id of the given vertex or edge.")
   (get-graph [e] "Return the graph the element is part of."))
-
-(defprotocol GetDocument
-  (get-document [e] [e k] "Get the document object for the element."))
 
 (defprotocol Vertex)
 

@@ -46,6 +46,9 @@
 ;; I'm not going to do it, and even then it may be better to model it as another
 ;; backing edge graph like or wrapping digraph or dag.
 
+
+(declare -add-vertices -add-edges -remove-vertex-documents -set-edge-documents)
+
 (definterface IEdgeGraphs
   (_getLabels ^clojure.lang.IPersistentVector [])
   (_getEdgeGraph ^io.lacuna.bifurcan.IGraph [label])
@@ -78,7 +81,7 @@
     (vec (.keys edges)))
   (_getEdgeGraph ^IGraph [g label]
     (let [x (.get edges label)]
-      (when-not (.isEmpty x)
+      (when (.isPresent x)
         (.get x))))
   (_removeEdgeGraph ^ILabelGraphs [g label]
     (let [x (.get edges label)]
@@ -100,16 +103,56 @@
                           labels)
                   documents settings nil))
 
-  RemoveVertices
-  (remove-vertices [g vertices]
-    )
+  AddEdges
+  (add-edges ^LinearGraph [^LinearGraph graph label pairs-or-triples]
+   (-add-edges graph label pairs-or-triples))
+  (add-edges ^LinearGraph [^LinearGraph graph label edge-type pairs-or-triples]
+    (-add-edges graph label edge-type pairs-or-triples))
+
+  AddVertices
+  (add-vertices [g id-document-pairs]
+    (-add-vertices g id-document-pairs))
 
   RemoveEdges
-  (remove-edges [g edges])
+  (remove-edges [g es]
+    (->LinearGraph (->> (group-by -label es)
+                        (reduce-kv (fn [^IMap edges label es]
+                                     (if-let [^IGraph edge (._getEdgeGraph g label)]
+                                       (.put edges label
+                                             (reduce (fn [^IGraph edge e]
+                                                       (.unlink edge (element-id (out-vertex e)) (element-id (in-vertex e))))
+                                                     edge
+                                                     es))
+                                       edges))
+                                   edges))
+                   documents settings metadata))
+
+  RemoveVertices
+  (remove-vertices [g vertices]
+    (-remove-vertex-documents
+     (->LinearGraph (reduce (fn [^IMap edges label]
+                              (reduce (fn [^IGraph edge v]
+                                        (.remove edge (element-id v)))
+                                      (._getEdgeGraph g label)
+                                      vertices))
+                            edges
+                            (._getLabels g))
+                    documents settings metadata)
+     vertices))
 
   RemoveDocuments
   (remove-documents [g elements]
-    )
+    (let [{vertices true edges false} (group-by vertex?)]
+      (cond-> g
+        (seq vertices) (-remove-vertex-documents g vertices)
+        (seq edges) (-set-edge-documents g (map #(vector % nil) edges)))))
+
+  SetDocuments
+  (set-documents [g element-document-pairs]
+    (let [{vertices true edges false} (group-by (comp vertex? first))]
+      (cond-> g
+        (seq vertices) (-add-vertices g vertices)
+        (seq edges) (-set-edge-documents g edges))))
 
   Linear
   (to-forked [g]
@@ -184,8 +227,10 @@
   (^LinearGraph [^LinearGraph graph label pairs-or-triples]
    (-add-edges graph label nil pairs-or-triples))
   (^LinearGraph [^LinearGraph graph label edge-type pairs-or-triples]
-   (let [edge-builder (get-in (.settings graph) [:edge-builder label] add-unique-edge)
-         ^IGraph edges (let [x (.get ^IMap (.edges graph) label)]
+   (-add-edges graph label edge-type pairs-or-triples
+               (get-in (.settings graph) [:edge-builder label] add-unique-edge)))
+  (^LinearGraph [^LinearGraph graph label edge-type pairs-or-triples edge-builder]
+   (let [^IGraph edges (let [x (.get ^IMap (.edges graph) label)]
                          (if (.isEmpty x)
                            (if edge-type (edge-type) (digraph-edge))
                            (.get x)))
@@ -197,16 +242,23 @@
                     (.settings graph)
                     (.metadata graph)))))
 
-(defn- -add-edge
-  ([graph label out-v in-v]
-   (-add-edges graph label [[out-v in-v]]))
-  ([graph label out-v in-v document]
-   (-add-edges graph label [[out-v in-v document]])))
+
+(defn- -set-edge-documents [g edge-document-pairs]
+  (reduce-kv (fn [graph label pairs]
+               (-add-edges g label nil
+                           (map (fn [[e doc]]
+                                  [(element-id (out-vertex e)) (element-id (in-vertex e)) doc])
+                                pairs)
+                           ;; TODO: this needs to use an alternative strategy for simulated parallel edges, etc.
+                           ;; It would be good to somehow attach the update strategy to the insertion strategy.
+                           ;; FIXME: for now it just replaces everything
+                           add-unique-edge))
+             g (group-by (comp -label first) edge-document-pairs)))
 
 (defn- -add-vertices ^LinearGraph [^LinearGraph graph id-document-pairs]
   (->LinearGraph (.edges graph)
                  (reduce (fn [^IMap props [id document]]
-                           (if document
+                           (if (some? document)
                              (.put props id document)
                              (if (.contains props id)
                                props
@@ -216,21 +268,20 @@
                  (.settings graph)
                  (.metadata graph)))
 
-(defn- -add-vertex
-  (^LinearGraph [^LinearGraph graph id]
-   (-add-vertices graph [[id nil]]))
-  (^LinearGraph [^LinearGraph graph id document]
-   (-add-vertices graph [[id document]])))
+(defn- -remove-vertex-documents [^LinearGraph g vertices]
+  (->LinearGraph (.edges g)
+                 (reduce (fn [^IMap documents v]
+                           (.remove documents (element-id v)))
+                         (.documents g)
+                         vertices)
+                 (.settings g)
+                 (.metadata g)))
 
-(extend LinearGraph
-  AddEdge
-  {:add-edge #'-add-edge
-   :add-edges #'-add-edges}
-  AddVertex
-  {:add-vertices #'-add-vertices
-   :add-vertex #'-add-vertex}
-  SetDocument
-  {:set-document #'-add-vertex})
+(defn- -has-vertex-document? [^LinearGraph g id]
+  (.isPresent (.get ^IMap (.documents g) id)))
+
+(defn vertex-ids-with-document [^ForkedGraph g]
+  (seq (.keys (.documents g))))
 
 (declare edge-graphs)
 
@@ -244,10 +295,6 @@
     (if (= m metadata)
       o
       (->ForkedGraph edges documents settings m)))
-
-  HasVertexDocument
-  (-has-vertex-document? [g id]
-    (not (.isEmpty (.get documents id))))
 
   HasVertex
   (-has-vertex? [g id labels]
@@ -281,7 +328,7 @@
     (vec (.keys edges)))
   (_getEdgeGraph ^IGraph [g label]
     (let [x (.get edges label)]
-      (when-not (.isEmpty x)
+      (when (.isPresent x)
         (.get x))))
   (_removeEdgeGraph ^ILabelGraphs [g label]
     (let [x (.get edges label)]
@@ -300,7 +347,7 @@
   (all-vertices [g]
     (->> (edge-graphs g)
          (map #(.vertices (val %)))
-         (apply concat)
+         (apply concat (vertex-ids-with-document g))
          distinct
          (map #(->V g % nil nil))))
 
@@ -310,6 +357,7 @@
 
   Forked
   (to-linear [g]
+    #dbg
     (->LinearGraph (.mapValues (.linear edges)
                                (reify BiFunction
                                  (apply [this k v]
@@ -373,6 +421,10 @@
   (element-id [e] nil)
   (get-graph [e] (get-graph out-v))
 
+  HasDocument
+  (has-document? [e]
+    (some? (get-document e)))
+
   GetDocument
   (get-document [e] (-get-edge-document e))
 
@@ -390,11 +442,11 @@
 
 (defn- -get-edge-document [^E e]
   (if-let [p ^Optional (._getDocument e)]
-    (when-not (.isEmpty p)
+    (when (.isPresent p)
       (.get p))
     (let [g ^ForkedGraph (get-graph (.out_v e))
           edges (.get ^IMap (.edges g) (.label e))]
-      (when-not (.isEmpty edges)
+      (when (.isPresent edges)
         (let [edges ^IGraph (.get edges)
               edge (.edge edges
                           (element-id (.out_v e))
@@ -467,14 +519,18 @@
   (element-id [e] id)
   (get-graph [e] graph)
 
+  HasDocument
+  (has-document? [e]
+    (some? (get-document e)))
+
   GetDocument
   (get-document [e]
     (if document
-      (when-not (.isEmpty document)
+      (when (.isPresent document)
         (.get document))
       (let [p (.get ^IMap (.documents graph) id)]
         (set! (.document e) p)
-        (when-not (.isEmpty p)
+        (when (.isPresent p)
           (.get p))))))
 
 (defn edges-with-label?

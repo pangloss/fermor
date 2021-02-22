@@ -94,9 +94,15 @@
   (wrap-inline ->get-vertex fermor.protocols.GetVertex)
   (wrap-inline ->to-linear fermor.protocols.Forked)
   (wrap-inline ->to-forked fermor.protocols.Linear)
-  (wrap-inline ->has-vertex-document fermor.protocols.HasVertexDocument)
+  (wrap-inline ->has-document fermor.protocols.HasDocument)
   (wrap-inline ->has-vertex fermor.protocols.HasVertex)
   (wrap-inline ->get-edge fermor.protocols.GetEdge)
+  (wrap-inline ->add-edges fermor.protocols.AddEdges)
+  (wrap-inline ->add-vertices fermor.protocols.AddVertices)
+  (wrap-inline ->remove-edges fermor.protocols.RemoveEdges)
+  (wrap-inline ->remove-vertices fermor.protocols.RemoveVertices)
+  (wrap-inline ->set-documents fermor.protocols.SetDocuments)
+  (wrap-inline ->remove-documents fermor.protocols.RemoveDocuments)
   (wrap-inline ->transpose fermor.protocols.GraphTranspose))
 
 (comment (macroexpand '(->vertex-edges 'element 'V+)))
@@ -114,6 +120,10 @@
   Element
   (element-id [v] (-> V+ (->element-id v) element-id))
   (get-graph [v] (-> V+ (->get-graph v) get-graph))
+
+  HasDocument
+  (has-document? [e]
+    (-> V+ (->has-document e) has-document?))
 
   GetDocument
   (get-document [v] (-> V+ (->get-document v) get-document))
@@ -167,6 +177,10 @@
   (element-id [e] (-> E+ (->element-id e) element-id))
   (get-graph [e] (-> E+ (->get-graph e) get-graph))
 
+  HasDocument
+  (has-document? [e]
+    (-> E+ (->has-document e) has-document?))
+
   GetDocument
   (get-document [e] (-> E+ (->get-document e) get-document))
 
@@ -208,10 +222,6 @@
   GetVertex
   (get-vertex [g id]
     (some-> (get-vertex (->get-vertex F+ g) id) (->mV (vertex-wrapper F+))))
-
-  HasVertexDocument
-  (-has-vertex-document? [g id]
-    (-> F+ (->has-vertex-document g) (-has-vertex-document? id)))
 
   HasVertex
   (-has-vertex? [g id labels]
@@ -262,6 +272,39 @@
     (-> L+ (->transpose g) -transpose (->mLinearGraph L+)))
   (-transpose [g labels]
     (-> L+ (->transpose g) (-transpose labels) (->mLinearGraph L+)))
+
+  AddEdges
+  (add-edges [g label pairs-or-triples]
+    (-> L+ (->add-edges g) (add-edges label pairs-or-triples)
+        (->mLinearGraph L+)))
+  (add-edges [g label edge-type pairs-or-triples]
+    (-> L+ (->add-edges g) (add-edges label edge-type pairs-or-triples)
+        (->mLinearGraph L+)))
+
+  AddVertices
+  (add-vertices [g id-document-pairs]
+    (-> L+ (->add-vertices g) (add-vertices id-document-pairs)
+        (->mLinearGraph L+)))
+
+  RemoveEdges
+  (remove-edges [g es]
+    (-> L+ (->remove-edges g) (remove-edges es)
+        (->mLinearGraph L+)))
+
+  RemoveVertices
+  (remove-vertices [g vertices]
+    (-> L+ (->remove-vertices g) (remove-vertices vertices)
+        (->mLinearGraph L+)))
+
+  RemoveDocuments
+  (remove-documents [g elements]
+    (-> L+ (->remove-documents g) (remove-documents elements)
+        (->mLinearGraph L+)))
+
+  SetDocuments
+  (set-documents [g element-document-pairs]
+    (-> L+ (->set-documents g) (set-documents element-document-pairs)
+        (->mLinearGraph L+)))
 
   Linear
   (to-forked [g]
