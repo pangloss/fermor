@@ -100,6 +100,17 @@
                           labels)
                   documents settings nil))
 
+  RemoveVertices
+  (remove-vertices [g vertices]
+    )
+
+  RemoveEdges
+  (remove-edges [g edges])
+
+  RemoveDocuments
+  (remove-documents [g elements]
+    )
+
   Linear
   (to-forked [g]
     (->ForkedGraph (.forked (.mapValues edges

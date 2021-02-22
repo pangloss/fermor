@@ -91,6 +91,12 @@
     [g id document]
     "Add a vertex. If `document` is provided, attach it to the vertex as well."))
 
+(defprotocol RemoveVertices
+  (remove-vertices [g vertices]))
+
+(defprotocol RemoveDocuments
+  (remove-documents [g elements]))
+
 (defprotocol AddEdge
   (add-edge
     [g label out-v in-v]
@@ -100,6 +106,9 @@
     [g label pairs]
     [g label edge-type pairs]
     "Add a edges between each pair of vertices in `pairs`."))
+
+(defprotocol RemoveEdges
+  (remove-edges [g edges]))
 
 (defprotocol SetDocument
   (set-document [g element value]

@@ -16,18 +16,21 @@
     node
     (get-vertex g node)))
 
+(defn- use-labels [x]
+  (-> x -wrapper -wrapper-settings :edge-labels))
+
 (defn- to-e [g element]
   (if (or (vertex? element) (edge? element))
     element
-    (get-vertex g element)))
-
-(defn- use-labels [x]
-  (-> x -wrapper -wrapper-settings :edge-labels))
+    (if (vector? element)
+      (some #(apply -get-edge g % element)
+            (use-labels g))
+      (get-vertex g element))))
 
 (deftype LoomGraph [graph]
   loom/Graph
   (nodes [g]
-    (mapcat #(vertices-with-edge graph %) (use-labels graph)))
+    (map element-id (mapcat #(vertices-with-edge graph %) (use-labels graph))))
   (edges [g]
     (mapcat #(-out-edges % (use-labels graph))
             (all-vertices graph)))
@@ -39,12 +42,12 @@
               (when-let [x (-get-edge graph label (to-id n1) (to-id n2))]
                 (reduced true)))
             false (use-labels graph)))
-  (successors* [g node] (map in-vertex (-out-edges (to-v graph node) (use-labels graph))))
+  (successors* [g node] (map (comp element-id in-vertex) (-out-edges (to-v graph node) (use-labels graph))))
   (out-degree [g node] (count (-out-edges (to-v graph node) (use-labels graph))))
   (out-edges [g node] (-out-edges (to-v graph node) (use-labels graph)))
 
   loom/Digraph
-  (predecessors* [g node] (map out-vertex (-in-edges (to-v graph node) (use-labels graph))))
+  (predecessors* [g node] (map (comp element-id out-vertex) (-in-edges (to-v graph node) (use-labels graph))))
   (in-degree [g node] (count (-in-edges (to-v graph node) (use-labels graph))))
   (in-edges [g node] (-in-edges (to-v graph node) (use-labels graph)))
   (transpose [g] (forked (-transpose (linear graph) (use-labels graph))))
@@ -66,12 +69,23 @@
                            get-document)))
 
 (deftype LoomEditableGraph [graph]
-  ;; TODO
   loom.attr/AttrGraph
-  (add-attr [g node-or-edge k v]   "Add an attribute to node or edge")
-  (add-attr [g n1 n2 k v]          "Add an attribute to node or edge")
-  (remove-attr [g node-or-edge k]  "Remove an attribute from a node or edge")
-  (remove-attr [g n1 n2 k]         "Remove an attribute from a node or edge")
+  (add-attr [g node-or-edge k v]
+    (when-let [e (to-e graph node-or-edge)]
+      (set-document graph e
+                    (assoc (get-document e) k v))))
+  (add-attr [g n1 n2 k v]
+    (when-let [e (to-e graph [n1 n2])]
+      (set-document graph e
+                    (assoc (get-document e) k v))))
+  (remove-attr [g node-or-edge k]
+    (when-let [e (to-e graph node-or-edge)]
+      (set-document graph e
+                    (dissoc (get-document e) k))))
+  (remove-attr [g n1 n2 k]
+    (when-let [e (to-e graph [n1 n2])]
+      (set-document graph e
+                    (dissoc (get-document e) k))))
   (attr [g node-or-edge k] (some-> (loom.attr/attrs g node-or-edge) (get k)))
   (attr [g n1 n2 k] (some-> (loom.attr/attrs g n1 n2) (get k)))
   (attrs [g node-or-edge] (get-document (to-e graph node-or-edge)))
@@ -82,32 +96,55 @@
   (transpose [g] (-transpose g (use-labels graph)))
 
   loom/EditableGraph
-  (add-nodes* [g nodes]    "Add nodes to graph g. See add-nodes")
-  (add-edges* [g edges]    "Add edges to graph g. See add-edges")
-  (remove-nodes* [g nodes] "Remove nodes from graph g. See remove-nodes")
-  (remove-edges* [g edges] "Removes edges from graph g. See remove-edges")
-  (remove-all [g]          "Removes all nodes and edges from graph g"))
+  (add-nodes* [g nodes]
+    (-> (linear graph)
+        (add-vertices (map vector nodes))
+        forked))
+  (add-edges* [g edges]
+    (-> (linear graph)
+        (add-edges (first (use-labels graph)) edges)
+        forked))
+  (remove-nodes* [g nodes]
+    (-> (linear graph)
+        (remove-vertices (filter #(loom/has-node? g %) nodes))
+        forked))
+  (remove-edges* [g edges]
+    (-> (linear graph)
+        (remove-edges (filter #(loom/has-edge? g (loom/src %) (loom/dest %)) edges))
+        forked))
+  (remove-all [g]
+    (let [g (-> (linear graph)
+                (remove-edges (loom/edges g))
+                forked)]
+      (-> (linear graph)
+          (remove-documents (loom/nodes g))
+          forked))))
+
 
 
 (deftype LoomEdge [edge]
+  Object
+  (equals [a b]
+    (if (vector? b)
+      (= [(loom/src a) (loom/dest a)] b)
+      (.equals edge b)))
+  (hashCode [e]
+    (hash [(loom/src e) (loom/dest e)]))
+
   loom/Edge
-  (src [e] (in-vertex edge))
-  (dest [e] (out-vertex edge)))
+  (src [e] (element-id (in-vertex edge)))
+  (dest [e] (element-id (out-vertex edge))))
 
 ;; Add shims to the custom graph to support the loom protocols:
 
 (do
   (custom/extend-edge
-   loom/Edge {:src :vertex
-              :dest :vertex})
+   loom/Edge {})
   (custom/extend-forked-graph
-   loom/Graph {:nodes [:vertex]
-               :edges [:edge]
-               :successors* [:vertex]
+   loom/Graph {:edges [:edge]
                :out-edges [:edge]})
   (custom/extend-forked-graph
-   loom/Digraph {:predecessors* [:vertex]
-                 :in-edges [:edge]
+   loom/Digraph {:in-edges [:edge]
                  :transpose :forked-graph})
   (custom/extend-forked-graph
    loom/WeightedGraph {})
@@ -131,7 +168,7 @@
    (as-loom-graph g {}))
   ([g settings]
    (let [settings (merge {:edge-labels [:loom]
-                          :weight/nil 1
+                          :weight/nil 1.0
                           :weight/no-edge ##Inf}
                          settings)]
      (custom/wrap-graph g settings ->LoomGraph ->LoomEditableGraph nil ->LoomEdge))))

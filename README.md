@@ -15,6 +15,14 @@ weight, more flexible, simpler and far faster, despite Pacer (as of a few years
 ago) itself generally being much faster than other graph traversal mechanisms
 that I had seen.
 
+## Alpha software and roadmap
+
+This project has mostly stabilised. The next major steps are to performance tune
+and possibly integrate the Neo4j embedded API which may require some minor
+protocol adjustments, but I don't anticipate major changes.
+
+## High performance in-memory immutable graph database
+
 Bundled with the traversal library is a fast immutable in-memory directed
 property graph database built on the very elegant
 [Bifurcan](https://github.com/lacuna/bifurcan) library. I use it to
@@ -26,12 +34,7 @@ The Fermor traversal namespace works well with any data source and
 there is no dependency between most of the functions in the library and the
 included graph.
 
-## Early pre-alpha software
-
-I am using this and tweaking it for my needs as I go. Don't expect *any*
-stability until I move it out of alpha.
-
-## The traversal library
+## Powerful, composable and expressive traversal library
 
 Like the Clojure core library, the functions in Fermor's traversal library are composable.
 
@@ -41,14 +44,6 @@ for creating your own domain-specific library.
 In my examples below I will try to follow the pattern of decomposing functions
 into small atomic units. This decomposition leads to surprising flexibility
 without any performance overhead at all.
-
-### Metadata preservation
-
-The library is metadata-preserving, so provides metadata-preserving wrappers
-for the simple arities of the core Clojure seq functions like `map`, `filter`,
-`remove`, `take`, `sort`, etc. Preserving metadata is important for traversing the
-fermor.bifurcan graph, but if your application does not make use of metadata you
-can ignore those functions.
 
 ### Introduction
 
@@ -71,11 +66,11 @@ define separate functions that operate per-element and per-sequence.
 
 ```clojure
 (defn cities [states]
-  (->> (ensure-seq states)
+  (->> states
        (out :state->city)))
 
 (defn states [cities]
-  (->> (ensure-seq cities)
+  (->> cities
        (in :state->city)))
 
 (defn large-city? [city]
@@ -87,7 +82,7 @@ In Clojure, we `filter` data all the time. We don't need to change that:
 
 ```clojure
 (defn large-cities [states]
-  (->> (ensure-seq states)
+  (->> states
        cities
        (filter large-city?)))
 ```
@@ -98,7 +93,7 @@ there is or isn't the expected data connected to the element at hand.
 
 ```clojure
 (defn states-with-a-large-city [states]
-  (->> (ensure-seq states)
+  (->> states
        (lookahead large-cities)))
 ```
 
@@ -106,7 +101,7 @@ We can also do lookaheads with specific min and max arguments.
 
 ```clojure
 (defn states-with-2to5-large-cities [states]
-  (->> (ensure-seq states)
+  (->> states
        (lookahead {:min 2 :max 5} large-cities)))
 ```
 
@@ -114,16 +109,7 @@ Or do a negative lookahead to say what we don't want (like the core `remove` fun
 
 ```clojure
 (defn states-without-a-large-city [states]
-  (->> (ensure-seq states)
+  (->> states
        (neg-lookahead large-cities)))
 ```
 
-The handy `f->>` macro is very useful for defining nested routes as arguments to
-functions. I especially use it when exploring data interactively. These two statements are equivalent:
-
-```clojure
-(map (f->> walk chew-gum) data)
-(map #(->> % walk chew-gum) data)`.
-```
-
-Need to find a better example, and haven't written about the interesting stuff yet...

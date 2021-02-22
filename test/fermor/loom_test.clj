@@ -1,5 +1,5 @@
 (ns fermor.loom-test
-  (:require [clojure.test :refer [deftest testing is]]
+  (:require [clojure.test :refer [deftest testing is are]]
             [fermor.core :refer [graph forked add-edges add-vertices v e-> e<-]]
             [fermor.loom-graph :refer [as-loom-graph]]
             [loom.graph :as loom]
@@ -16,12 +16,12 @@
                         {:edge-labels [:loom :xyz]
                          :weight/nil 9
                          :weight/no-edge 33})]
-    (is (= [(v :b)] (loom/successors* g :a)))
+    (is (= [:b] (loom/successors* g :a)))
     (is (= 1 (loom/out-degree g :a)))
 
     (is (= [(e-> :a :loom [4] :b)] (loom/out-edges g :a)))
 
-    (is (= [(v :a)] (loom/predecessors* g :b)))
+    (is (= [:a] (loom/predecessors* g :b)))
     (is (= 1 (loom/in-degree g :b)))
 
     (loom/in-edges g :b)
@@ -34,7 +34,7 @@
 
     (is (= 4 (loom.attr/attrs g :a :b)))
 
-    (is (= #{(v :a) (v :b) (v :c) (v :d)} (set (loom/nodes g))))
+    (is (= #{:a :b :c :d} (set (loom/nodes g))))
 
     (is (= [(e-> :a :loom [4] :b) (e-> :c :xyz :d)]
            (loom/edges g)))
