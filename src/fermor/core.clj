@@ -87,6 +87,13 @@
   [graph]
   (->KGraph graph))
 
+(defn with-paths
+  "Allow elements to track paths starting from the point this is called. Any
+  element that you traverse to will retain the path that you took to get to it."
+  {:see-also ["with-path" "path" "path?" "no-path" "cyclic-path?"]}
+  [r]
+  (map with-path r))
+
 (defn label
   "This edge label"
   [e]

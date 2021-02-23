@@ -1,6 +1,7 @@
-(ns fermor.gremlin-examples
-  (:use fermor.core)
-  (:require  [clojure.test :as t]))
+(ns fermor.gremlin-examples-test
+  (:require  [clojure.test :refer [deftest is testing]]
+             [fermor.protocols :refer [*compact-path-printing*]]
+             [fermor.core :refer :all :as c :exclude [is]]))
 
 ;;; Examples from https://tinkerpop.apache.org/docs/current/recipes/
 
@@ -44,14 +45,15 @@
                (in [:appliesTo])
                (lookahead
                 (f->> (in [:completes])
-                      (is person)))
+                      (c/is person)))
                (map (fn [application]
                       [job
                        (out-vertex created)
                        created
                        application]))))))))))
 
-;; After a bit of staring at the above mess I realized it could be better expressed using clojure's built-in for macro:
+;; After a bit of staring at the above mess I realized it could be better
+;; expressed using clojure's built-in `for` macro:
 
 (defn query [person]
   (for [job (all-vertices job-graph)
@@ -59,20 +61,26 @@
         application (->> job
                          (in [:appliesTo])
                          (lookahead (f->> (in [:completes])
-                                          (is person))))]
+                                          (c/is person))))]
     ;; no need to even name "company", though it could easily be if you prefer:
     [job (out-vertex created) created application]))
 
-(defn traverse-graph []
-  [(query (get-vertex job-graph :stephen))
-   ;; => ([(v :blueprintsJob3) (v :blueprints) (e<- :blueprints :created [{:creationDate "12/16/2015"}] :blueprintsJob3) (v :appStephen2)]
-   ;;     [(v :rexsterJob1) (v :rexster) (e<- :rexster :created [{:creationDate "12/18/2015"}] :rexsterJob1) (v :appStephen1)])
+(deftest traverse-graph []
+  (is (= [[(v :blueprintsJob3)
+           (v :blueprints)
+           (e<- :blueprints :created [{:creationDate "12/16/2015"}] :blueprintsJob3)
+           (v :appStephen2)]
+          [(v :rexsterJob1)
+           (v :rexster)
+           (e<- :rexster :created [{:creationDate "12/18/2015"}] :rexsterJob1)
+           (v :appStephen1)]]
+         (query (get-vertex job-graph :stephen))))
 
-   (let [stephen (get-vertex job-graph :stephen)
-         bob (get-vertex job-graph :bob)]
-     ;; Show that the two queries are equivalent
-     (= (mapcat query*gremlin-port [stephen bob])
-        (mapcat query [stephen bob])))]) ;; => true
+  (let [stephen (get-vertex job-graph :stephen)
+        bob (get-vertex job-graph :bob)]
+    ;; Show that the two queries are equivalent
+    (is (= (mapcat query*gremlin-port [stephen bob])
+           (mapcat query [stephen bob]))))) ;; => true
 
 (comment
   (require '[criterium.core :refer [quick-bench]])
@@ -116,6 +124,22 @@
        (map (fn [v] {:v v :degree (count (both-e v))}))
        (sort-by (comp - :degree))))
 
+(deftest centrality
+  (is (= (set [{:v (v :blueprints), :degree 3}
+               {:v (v :bob), :degree 2}
+               {:v (v :stephen), :degree 2}
+               {:v (v :appStephen1), :degree 2}
+               {:v (v :appBob1), :degree 2}
+               {:v (v :appBob2), :degree 2}
+               {:v (v :appStephen2), :degree 2}
+               {:v (v :blueprintsJob3), :degree 2}
+               {:v (v :blueprintsJob2), :degree 2}
+               {:v (v :blueprintsJob1), :degree 2}
+               {:v (v :rexsterJob1), :degree 2}
+               {:v (v :rexster), :degree 1}])
+         (set (degree-centrality job-graph)))))
+
+
 ;; Betweeness Centrality
 ;;
 ;; Betweeness centrality is a measure of the number of times a vertex is found
@@ -134,26 +158,37 @@
       (add-edges :knows [[:a :b] [:b :c] [:c :a] [:a :d] [:c :d]])
       (forked)))
 
-(defn betweeness-centrality []
-  ;; this doesn't get the same number as their example, but seems to correctly model their description.
-  (->> (all-vertices betweeness-graph)
-       (map with-path)
-       (all (f->> both (remove cyclic-path?)))
-       (map path)
-       (group-by (juxt first last))
-       vals
-       (mapcat (f->> (group-by count) (into (sorted-map)) first val))
-       (apply concat)
-       (remove edge?)
-       group-count))
-
+(deftest betweeness-centrality
+  ;; This doesn't get the same number as their example, but correctly models
+  ;; their description. The gremlin code is too confusing to be confident in
+  ;; understanding.
+  (is (= {(v :a) 8
+          (v :b) 14
+          (v :c) 9
+          (v :d) 9
+          (v :e) 14
+          (v :f) 8}
+         (->> (all-vertices betweeness-graph)
+              with-paths
+              (all both)
+              (map path)
+              (group-by (juxt first last))
+              vals
+              (mapcat (f->> (group-by count) (into (sorted-map)) first val))
+              (apply concat)
+              (remove edge?)
+              group-count))))
 
 ;; Cycle detection
 
-(defn find-all-cycles []
-  (->> (all-vertices cycles-graph)
-       (map with-path)
-       (all-cycles 3 out)))
+(deftest find-all-cycles
+  (is (= [[(v :b) (e-> :b :knows :c) (v :c) (e-> :c :knows :a) (v :a) (e-> :a :knows :b) (v :b)]
+          [(v :c) (e-> :c :knows :a) (v :a) (e-> :a :knows :b) (v :b) (e-> :b :knows :c) (v :c)]
+          [(v :a) (e-> :a :knows :b) (v :b) (e-> :b :knows :c) (v :c) (e-> :c :knows :a) (v :a)]]
+         (->> (all-vertices cycles-graph)
+              (map with-path)
+              (all-cycles 3 out)
+              (map path)))))
 
 (comment
   ;; TODO: The basic graph does not allow duplicate edges, which breaks this
@@ -204,15 +239,32 @@
 
 
 
-(defn recommend-stuff []
-  (for [person (->> (all-vertices rec-graph :person))]
-    [person (->> person
-                 (out [:bought])
-                 (into-set (fn [s r]
-                             (->> r
-                                  (in [:bought])
-                                  (not-id (k :person :alice))
-                                  (out [:bought])
-                                  (random-sample 0.5) ;; at the end it suggests adding this
-                                  (none-of s))))
-                 sorted-group-by-count)]))
+(deftest recommend-stuff
+  (is (= [[(V :person :jon)          
+           {2 [(V :product 3) (V :product 1) (V :product 5)],
+            3 [(V :product 2) (V :product 4)]}]
+          [(V :person :alice)
+           {4 [(V :product 8) (V :product 10)],
+            5 [(V :product 9) (V :product 2)],
+            6 [(V :product 1)]}]
+          [(V :person :bob)
+           {2 [(V :product 6) (V :product 8) (V :product 10)],
+            3 [(V :product 7) (V :product 9)]}]
+          [(V :person :jill)
+           {2 [(V :product 3) (V :product 1) (V :product 5)],
+            3 [(V :product 7) (V :product 9)]}]
+          [(V :person :jack)
+           {2 [(V :product 6) (V :product 8) (V :product 10)],
+            3 [(V :product 2) (V :product 4)]}]]
+         (for [person (->> (all-vertices rec-graph :person))]
+           [person (->> person
+                        (out [:bought])
+                        (into-set (fn [s r]
+                                    (->> r
+                                         (in [:bought])
+                                         (not-id (k :person :alice))
+                                         (out [:bought])
+                                         ;; At the end of the section, the Gremlin guide suggests adding randomness like this:
+                                         #_(random-sample 0.5)
+                                         (none-of s))))
+                        sorted-group-by-count)]))))

@@ -47,7 +47,7 @@
 ;; backing edge graph like or wrapping digraph or dag.
 
 
-(declare -add-vertices -add-edges -remove-vertex-documents -set-edge-documents)
+(declare -add-vertices -add-edges -remove-vertex-documents -set-edge-documents vertex-ids-with-document)
 
 (definterface IEdgeGraphs
   (_getLabels ^clojure.lang.IPersistentVector [])
@@ -280,9 +280,6 @@
 (defn- -has-vertex-document? [^LinearGraph g id]
   (.isPresent (.get ^IMap (.documents g) id)))
 
-(defn vertex-ids-with-document [^ForkedGraph g]
-  (seq (.keys (.documents g))))
-
 (declare edge-graphs)
 
 (deftype ForkedGraph [^IMap edges ^IMap documents settings metadata]
@@ -372,6 +369,9 @@
 
 (defn document-equality? [g]
   (:document-equality? (graph-settings g)))
+
+(defn vertex-ids-with-document [^ForkedGraph g]
+  (seq (.keys (.documents g))))
 
 (defn- graph-equality [a b]
   ;; TODO: include settings in equality and hashing?

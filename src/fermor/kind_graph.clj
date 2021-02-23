@@ -134,9 +134,9 @@
 
 (defn V
   ([kind id]
-   (->KVertex (v kind id)))
+   (->KVertex (v (k kind id))))
   ([kind id document]
-   (->KVertex (v kind id document))))
+   (->KVertex (v (k kind id) document))))
 
 (defn E->
   ([out-id label in-id]

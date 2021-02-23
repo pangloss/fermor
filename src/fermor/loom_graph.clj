@@ -157,4 +157,4 @@
                           :weight/nil 1.0
                           :weight/no-edge ##Inf}
                          settings)]
-     (custom/wrap-graph g settings ->LoomGraph ->LoomEditableGraph nil ->LoomEdge))))
+     (custom/wrap-graph g settings ->LoomGraph ->LoomEditableGraph nil nil))))
