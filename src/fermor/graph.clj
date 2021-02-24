@@ -437,7 +437,7 @@
   (out-vertex [e] out-v)
   (in-vertex [e] in-v)
 
-  TraversalDirection ;; see ->?, <-?, go-back, go-on, other-v, same-v
+  TraversalDirection ;; see followed-forward?, followed-reverse?, go-back, go-on, other-v, same-v
   (traversed-forward [e] used-forward))
 
 (defn- -get-edge-document [^E e]

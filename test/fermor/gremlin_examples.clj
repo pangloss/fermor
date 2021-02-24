@@ -238,9 +238,8 @@
         fermor.kind-graph/->KGraph)))
 
 
-
 (deftest recommend-stuff
-  (is (= [[(V :person :jon)          
+  (is (= [[(V :person :jon)
            {2 [(V :product 3) (V :product 1) (V :product 5)],
             3 [(V :product 2) (V :product 4)]}]
           [(V :person :alice)
@@ -259,12 +258,10 @@
          (for [person (->> (all-vertices rec-graph :person))]
            [person (->> person
                         (out [:bought])
-                        (into-set (fn [s r]
-                                    (->> r
-                                         (in [:bought])
-                                         (not-id (k :person :alice))
-                                         (out [:bought])
-                                         ;; At the end of the section, the Gremlin guide suggests adding randomness like this:
-                                         #_(random-sample 0.5)
-                                         (none-of s))))
+                        (with-set remove
+                          (f->> (in :bought)
+                                (not-id (k :person :alice))
+                                (out :bought)
+                                ;; At the end of the section, the Gremlin guide suggests adding randomness like this:
+                                #_(random-sample 0.5)))
                         sorted-group-by-count)]))))

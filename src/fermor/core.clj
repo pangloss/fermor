@@ -54,12 +54,18 @@
    (add-edges graph label [[out-v in-v document]])))
 
 (defn add-vertex
+  "Add a vertex id to the graph with or without an associated document.
+
+  Adding a vertex with no document may have the effect of removing a document
+  from an already existing vertex."
   ([graph id]
    (add-vertices graph [[id nil]]))
   ([graph id document]
    (add-vertices graph [[id document]])))
 
-(defn set-document [graph id document]
+(defn set-document
+  "Replace the document for a given vertex by id."
+  [graph id document]
   (set-documents graph [[id document]]))
 
 (defn ensure-seq
@@ -70,6 +76,7 @@
     [x]))
 
 (defn vertices
+  "Return all vertices or all vertices associated with edges that have the given labels in the graph."
   ([g] (all-vertices g))
   ([g labels]
    (distinct (mapcat #(vertices-with-edge g %) (ensure-seq labels)))))
@@ -111,29 +118,29 @@
 
 ;; TraversalDirection methods
 
-(defn ->?
+(defn followed-forward?
   "Returns true if we followed an out-edge to get to this edge."
   [e]
   (if (satisfies? fermor.protocols/TraversalDirection e)
     (traversed-forward e)
     (condition :traversal-direction/unknown e (default true))))
 
-(defn <-?
+(defn followed-reverse?
   "Returns true if we followed an in-edge to get to this edge."
   [e]
-  (not (->? e)))
+  (not (followed-forward? e)))
 
 (defn go-back
   "Returns the vertex we used to get to this edge"
-  {:see-also ["->?" "go-on" "same-v"]}
+  {:see-also ["followed-forward?" "go-on" "same-v"]}
   [e]
-  (if (->? e) (out-vertex e) (in-vertex e)))
+  (if (followed-forward? e) (out-vertex e) (in-vertex e)))
 
 (defn go-on
   "Returns the vertex we did not use to get to this edge"
-  {:see-also ["->?" "go-back" "other-v"]}
+  {:see-also ["followed-forward?" "go-back" "other-v"]}
   [e]
-  (if (->? e) (in-vertex e) (out-vertex e)))
+  (if (followed-forward? e) (in-vertex e) (out-vertex e)))
 
 (defn- fast-traversal
   "Requires that all vertices are from the same graph to work."
@@ -398,8 +405,11 @@
    Returns a lazy seq of lazy seqs of siblings.
 
    get-siblings is a function that given source returns dest.
-   to-parent and from-parent are functions that when combined will traverse from source to dest."
-  {:deprecated "pre-release"} ;; deprecated pending finding a real use case.
+   to-parent and from-parent are functions that when combined will traverse from source to dest.
+
+   This is the graph-structural version of go-on and go-back allowing for
+   directional traversal through arbitrary graph structures."
+  {:see-also ["go-on" "go-back"]}
   ([get-siblings r]
    (letfn [(sibling-seq [[v & [vs]]]
              (lazy-seq
@@ -420,8 +430,12 @@
    even if the parent has multiple members.
 
    get-siblings is a function that given source returns dest.
-   to-parent and from-parent are functions that when combined will traverse from source to dest."
-  {:deprecated "pre-release"} ;; deprecated pending finding a real use case.
+   to-parent and from-parent are functions that when combined will traverse from
+   source to dest.
+
+   This is the graph-structural version of go-on and go-back allowing for
+   directional traversal through arbitrary graph structures."
+  {:see-also ["go-on" "go-back"]}
   ([get-siblings r]
    (apply concat (group-siblings get-siblings r)))
   ([to-parent from-parent r]
@@ -541,7 +555,15 @@
   [fs r]
   (mapv (fn [f] (f r)) fs))
 
-(defn keyed-branch [pairs r]
+(defn keyed-branch
+  "Like branch, but instead of a list of functions, it takes a flat list of
+  pairs of key, function. The result is a map of key to the result of the
+  function for each pair against the route.
+
+  Example:
+
+    (keyed-branch [:passengers to-passengers :crew to-crew] ships)"
+  [pairs r]
   (reduce (fn [m [k f]] (assoc m k (f r))) {} (partition 2 pairs)))
 
 (defn merge-exhaustive
@@ -797,41 +819,15 @@
   ([path-pred element-pred f r]
    (build-all descents (deepest-control f) true nil path-pred element-pred f r)))
 
-(comment
-  ;; I think these are useless... why didn't I delete them?
-  (defn deepest-with-cycles
-    "Produces a lazy sequence of every leaf node reachable by traversing all of
-  the children of every element in the route. Does not cut cycles.
-
-  See `all` for details on arities."
-    ([f r]
-     (build-all descend (deepest-control f) false nil  nil nil f r))
-    ([pred f r]
-     (build-all descend (deepest-control f) false pred nil nil f r))
-    ([path-pred element-pred f r]
-     (build-all descend (deepest-control f) false nil path-pred element-pred f r)))
-
-  (defn deepest-paths-with-cycles
-    "Produces a lazy sequence of paths to every leaf node reachable by traversing
-  all of the children of every element in the route. Does not cut cycles.
-
-  See `all` for details on arities.
-
-  WARNING! If there are any cycles this will get stuck producing no output until
-  the cycle control kicks in after a long wait. Prefer `deepest-paths`"
-    ([f r]
-     (build-all descents (deepest-control f) false nil nil nil f r))
-    ([pred f r]
-     (build-all descents (deepest-control f) false pred nil nil f r))
-    ([path-pred element-pred f r]
-     (build-all descents (deepest-control f) false nil path-pred element-pred f r))))
-
 (defn- all-cycles-control [path e]
   (if (= e (first path))
     emit-and-cut
     continue))
 
 (defn all-cycles
+  "Produces a lazy sequence of elements that have a cyclic path.
+
+  See `all` for details on arities."
   ;; force a path pred to turn on ordered-sets in build-all.
   ([f r]
    (build-all descend all-cycles-control true nil (constantly true) nil f r))
@@ -842,6 +838,9 @@
               (or path-pred (constantly true)) element-pred f r)))
 
 (defn all-cycle-paths
+  "Produces a lazy sequence of cyclic paths.
+
+  See `all` for details on arities."
   ;; force a path pred to turn on ordered-sets in build-all.
   ([f r]
    (build-all descents all-cycles-control true nil (constantly true) nil f r))
@@ -880,13 +879,15 @@
 
 (defn is
   "Filter for items in the route equal to v."
+  {:see-also ["isn't"]}
   [v r]
-  (filter #{v} (ensure-seq r)))
+  (filter #(= v %) (ensure-seq r)))
 
 (defn isn't
-  "Filter for items in the route equal to v."
+  "Filter for items in the route not equal to v."
+  {:see-also ["is"]}
   [v r]
-  (remove #{v} (ensure-seq r)))
+  (filter #(not= v %) (ensure-seq r)))
 
 (defn one-of
   "Filter for items in the route equal to one of the items in vs."
@@ -898,23 +899,45 @@
   [vs r]
   (remove (if (set? vs) vs (set vs)) r))
 
-(defn of-kind [kind-pred r]
+(defn of-kind
+  "Include only items matching the `kind` keyword or predicate."
+  [kind-pred r]
   (if (keyword? kind-pred)
     (filter #(= kind-pred (kind %)) r)
     (filter (comp kind-pred kind) r)))
 
-(defn with-id [id-pred r]
+(defn with-id
+  "Include only items matching the KindId or id predicate."
+  [id-pred r]
   (if (or (instance? KindId id-pred) (keyword? id-pred))
     (filter #(= id-pred (element-id %)) r)
     (filter (comp id-pred element-id) r)))
 
-(defn not-id [id-pred r]
+(defn not-id
+  "Remove items matching the KindId or id predicate."
+  [id-pred r]
   (if (or (instance? KindId id-pred) (keyword? id-pred))
-    (remove #(= id-pred (element-id %)) r)
+    (filter #(not= id-pred (element-id %)) r)
     (remove (comp id-pred element-id) r)))
 
-(defn into-set [f r]
-  (f (into #{} (ensure-seq r)) r))
+(defn with-set
+  "Call the function f with a set of the values in r together with either r or (f2 r).
+
+  Example:
+
+     (with-set filter (f->> out out) r)
+
+  is equivalent to the following:
+
+     (filter (into #{} r) (->> r out out))
+
+  By using with-set, the call is chainable.
+
+  This call is used in the Gremlin recommender sample"
+  ([f r]
+   (f (into #{} (ensure-seq r)) r))
+  ([f f2 r]
+   (f (into #{} (ensure-seq r)) (f2 r))))
 
 (defn distinct-in
   "Use if distinct is needed within a loop or a lookahead, or if distinctness needs to
