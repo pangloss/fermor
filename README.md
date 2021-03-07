@@ -58,11 +58,12 @@ from.
 
 It's good practice to include both element types in an edge name as I do here.
 
-I'll also use `ensure-seq` everywhere here, which simply wraps elements in a
-vector, allowing each helper function to be used either in functions that work
-element-by-element, or in functions that work on collections of data. To squeeze
-the last nanoseconds of performance in performance critical routes you could
-define separate functions that operate per-element and per-sequence.
+The following example is admittedly terrible. Until I get a better example set
+up, please see the [gremlin examples](/test/fermor/gremlin_examples.clj) and
+[cypher examples](/test/fermor/cypher_examples.clj), where I've taken the most
+sophisticated examples I've been able to find in those projects' documentation
+and translated them to use fermor. More interesting examples are very welcome so
+please do send them my way if you know of good ones.
 
 ```clojure
 (defn cities [states]
