@@ -3,6 +3,8 @@
              [fermor.core :refer :all]
              [clojure.string :as str]))
 
+;; TODO find/create the appropriate graphs and turn these into tests.
+
 (defn properties [p r]
   (->> r documents (map p)))
 
