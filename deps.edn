@@ -3,7 +3,7 @@
            potemkin/potemkin            {:mvn/version "0.4.5"}
            io.lacuna/bifurcan           {:mvn/version "0.2.0-alpha4"}
            org.flatland/ordered         {:mvn/version "1.5.9"}
-           pangloss/pure-conditioning   {:local/root "../conditions"}}
+           com.xn--lgc/pure-conditioning {:mvn/version "0.1.1"}}
  :aliases {:test     {:extra-paths ["test"]
                       :jvm-opts ["-XX:-OmitStackTraceInFastThrow"]
                       :extra-deps  {aysylu/loom {:mvn/version "1.0.2"}}}}}

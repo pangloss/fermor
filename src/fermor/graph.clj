@@ -1,7 +1,7 @@
 (ns fermor.graph
   (:refer-clojure :exclude [filter keep])
   (:require [fermor.protocols :refer :all]
-            [conditions :refer [condition error default optional]]
+            [pure-conditioning :refer [condition error default optional]]
             [clojure.pprint :refer [simple-dispatch]])
   (:import (io.lacuna.bifurcan DirectedGraph DirectedAcyclicGraph IGraph Graphs ISet IMap Map Maps$Entry)
            (java.util.function BiFunction)

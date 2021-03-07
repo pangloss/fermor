@@ -1,5 +1,5 @@
 (ns fermor.core
-  (:require [conditions :refer [condition manage lazy-conditions error default]]
+  (:require [pure-conditioning :refer [condition manage lazy-conditions error default]]
             [potemkin :refer [import-vars]]
             [flatland.ordered.set :refer [ordered-set]]
             [fermor.protocols :as proto :refer [Wrappable -out-edges -in-edges
@@ -478,7 +478,7 @@
 (defn lookahead
   "Ensure that the function produces a collection of at least one item.
 
-   Use the arity-2 version to specify that there must be at least min and/or at
+   Use the arity 3 version to specify that there must be at least min and/or at
    most max items in the route. If min or max is nil that limit will not be
    enforced."
   ([f r]
@@ -502,7 +502,7 @@
 
    Ensure that the function produces a collection of at least one item.
 
-   Use the arity-2 version to specify that there must be at least min and/or at
+   Use the arity 3 version to specify that there must be at least min and/or at
    most max items in the route. If min or max is nil that limit will not be
    enforced."
   ([f e]
@@ -524,9 +524,9 @@
 (defn neg-lookahead
   "Ensure that the function does NOT produce a collection of at least one item.
 
-   Use the arity-2 version to specify that there must NOT be at least min
+   Use the arity 3 version to specify that there must NOT be at least min
    and/or at most max items in the route. If min or max is nil that limit will
-   not be enforced. The arity-2 version of neg-lookahead is not really recommended
+   not be enforced. The arity 3 version of neg-lookahead is not really recommended
    as it is a little bit confusing."
   ([f r]
    (filter #(not (seq (f %))) (ensure-seq r)))
@@ -694,6 +694,10 @@
   "Descents is a variant of descend which returns the path that entire descent
   path as a vector rather than just the resulting element.
 
+   Note that the descent path is not the same as using with-path to produce
+  proper paths. The descent path only includes the actual elements that are
+  passed into the children function in the course of operation.
+
    Please see `descend` for details. In descents, the initial path is not optional
   and must be a vector."
   {:see-also ["descend" "all" "deepest" "all-paths" "deepest-paths"]}
@@ -709,7 +713,9 @@
     ([a b]
      (and (f1 a b) (f2 a b)))))
 
-(defn- build-all [style control cut-cycles? pred path-pred element-pred f r]
+(defn- build-all
+  "Does everything just as its name implies."
+  [style control cut-cycles? pred path-pred element-pred f r]
   (let [paths (when (or cut-cycles? path-pred pred (identical? descents style))
                 (if cut-cycles?
                   (if (or (fn? pred) (fn? path-pred))
@@ -1072,6 +1078,7 @@
   "Return a map of {item count-equal-items} or {(f item) count-equal}.
 
   Arity 1 is basically identical to `frequencies`."
+  {:see-also ["clojure.core/frequencies" "sorted-group-count" "group-by-count"]}
   ([coll]
    (persistent!
     (reduce (fn [r item]
@@ -1088,6 +1095,7 @@
 
 (defn sorted-group-count
   "Return a map of {item count-equal-items} or {(f item) count-equal}"
+  {:see-also ["group-count" "group-by-count"]}
   ([coll]
    (reduce (fn [r item]
              (assoc r item (inc (get r item 0))))
@@ -1102,6 +1110,7 @@
 
 (defn group-by-count
   "Return a map of {count [all keys with that unique count]}"
+  {:see-also ["group-count" "sorted-group-by-count" "group-by-count>1"]}
   ([coll]
    (persistent!
     (reduce (fn [r [k count]]
@@ -1117,6 +1126,7 @@
 
 (defn sorted-group-by-count
   "Return a map of {count [all keys with that unique count]}"
+  {:see-also ["group-by-count" "group-by-count>1"]}
   ([coll]
    (reduce (fn [r [k count]]
              (assoc r count (conj (get r count []) k)))
@@ -1130,6 +1140,7 @@
 
 (defn group-by-count>1
   "Return a map of {count [all keys with that unique count]} where count > 1"
+  {:see-also ["group-by-count"]}
   ([coll]
    (persistent!
     (reduce (fn [r [k count]]
@@ -1150,7 +1161,8 @@
 (defn distinct-by
   "Returns a lazy sequence of the elements of coll with duplicates removed.
   Returns a stateful transducer when no collection is provided."
-  {:adapted-from 'clojure.core/distinct}
+  {:adapted-from 'clojure.core/distinct
+   :see-also "clojure.core/distinct"}
   ([key coll]
    (let [step (fn step [xs seen]
                 (lazy-seq
