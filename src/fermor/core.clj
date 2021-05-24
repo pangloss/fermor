@@ -321,9 +321,9 @@
 
 (defn both*
   "Returns a lazy seq of lazy seqs of vertices with edges pointing both in and out of this vertex "
-  ([r] (->> r both-e* (map other-v)))
-  ([labels r] (both-e* go-on labels r))
-  ([labels f r] (both-e* (comp f go-on) labels r)))
+  ([r] (->> r both-e* other-v))
+  ([labels r] (both-e* other-v labels r))
+  ([labels f r] (both-e* (comp f other-v) labels r)))
 
 (defn both
   "Returns a lazy seq of vertices with edges pointing both in and out of this vertex "
