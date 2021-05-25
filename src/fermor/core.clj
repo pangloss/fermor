@@ -64,9 +64,9 @@
    (add-vertices graph [[id document]])))
 
 (defn set-document
-  "Replace the document for a given vertex by id."
-  [graph id document]
-  (set-documents graph [[id document]]))
+  "Replace the document for a given element or vertex id."
+  [graph element-or-id document]
+  (set-documents graph [[element-or-id document]]))
 
 (defn ensure-seq
   "Returns either nil or something sequential."

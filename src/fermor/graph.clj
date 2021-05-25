@@ -59,6 +59,31 @@
   (_getDocument ^java.util.Optional [])
   (_setDocument ^IDocumentCache [^java.util.Optional p]))
 
+
+(defn- -remove-documents [g elements]
+  (let [{:keys [vertices edges]}
+        (group-by (fn [e]
+                    (cond (vertex? e) :vertices
+                          (edge? e) :edges))
+                  elements)]
+    (cond-> g
+      (seq vertices) (-remove-vertex-documents vertices)
+      (seq edges) (-set-edge-documents (map #(vector % nil) edges)))))
+
+(defn- -set-documents [g element-document-pairs]
+  (let [{:keys [vertices edges ids]}
+        (group-by (fn [[e]]
+                    (cond (vertex? e) :vertices
+                          (edge? e) :edges
+                          :else :ids))
+                  element-document-pairs)]
+    (cond-> g
+      (seq ids) (-add-vertices ids)
+      (seq vertices) (-add-vertices (map (fn [[v doc]]
+                                           [(element-id v) doc])
+                                         vertices))
+      (seq edges) (-set-edge-documents edges))))
+
 (deftype LinearGraph [^IMap edges ^IMap documents settings metadata]
   Object
   (equals [a b] (graph-equality a (-unwrap b)))
@@ -105,7 +130,7 @@
 
   AddEdges
   (add-edges ^LinearGraph [^LinearGraph graph label pairs-or-triples]
-   (-add-edges graph label pairs-or-triples))
+    (-add-edges graph label pairs-or-triples))
   (add-edges ^LinearGraph [^LinearGraph graph label edge-type pairs-or-triples]
     (-add-edges graph label edge-type pairs-or-triples))
 
@@ -142,17 +167,11 @@
 
   RemoveDocuments
   (remove-documents [g elements]
-    (let [{vertices true edges false} (group-by vertex?)]
-      (cond-> g
-        (seq vertices) (-remove-vertex-documents g vertices)
-        (seq edges) (-set-edge-documents g (map #(vector % nil) edges)))))
+    (-remove-documents g elements))
 
   SetDocuments
   (set-documents [g element-document-pairs]
-    (let [{vertices true edges false} (group-by (comp vertex? first))]
-      (cond-> g
-        (seq vertices) (-add-vertices g vertices)
-        (seq edges) (-set-edge-documents g edges))))
+    (-set-documents g element-document-pairs))
 
   Linear
   (to-forked [g]
@@ -282,6 +301,11 @@
 
 (declare edge-graphs)
 
+(defn- -forked-set-documents [g element-document-pairs]
+  (forked
+   (set-documents (linear g)
+                  element-document-pairs)))
+
 (deftype ForkedGraph [^IMap edges ^IMap documents settings metadata]
   Object
   (equals [a b] (graph-equality a (-unwrap b)))
@@ -352,9 +376,22 @@
   (get-vertex [g id]
     (->V g id nil nil))
 
+  RemoveDocuments
+  (remove-documents [g elements]
+    (forked
+     (remove-documents (linear g)
+                       (map (fn [e]
+                              (cond (vertex? e) e
+                                    (edge? e) e
+                                    :else (get-vertex g e)))
+                            elements))))
+
+  SetDocuments
+  (set-documents [g element-document-pairs]
+    (-forked-set-documents g element-document-pairs))
+
   Forked
   (to-linear [g]
-    #dbg
     (->LinearGraph (.mapValues (.linear edges)
                                (reify BiFunction
                                  (apply [this k v]
