@@ -4,7 +4,8 @@
             [flatland.ordered.set :refer [ordered-set]]
             [fermor.protocols :as proto :refer [Wrappable -out-edges -in-edges
                                                 traversed-forward -label -unwrap
-                                                -out-edges-prepared -in-edges-prepared]]
+                                                -out-edges-prepared -in-edges-prepared
+                                                -transpose]]
             [fermor.descend :refer [*descend *descents extrude *no-result-interval*]]
             fermor.graph
             [fermor.kind-graph :refer [->KGraph]]
@@ -363,6 +364,17 @@
   contains the given key value pair."
   [r k v]
   (filter (fn [e] (= v (get (get-document e) k))) (ensure-seq r)))
+
+;; other
+
+(defn transpose
+  "Transpose reverses the direction of all edges in the graph, or creates a new
+  graph with only the selected edge labels, all of which are reversed."
+  ([g]
+   (forked (-transpose (linear g))))
+  ([g labels]
+   (forked (-transpose (linear g) labels))))
+
 
 ;; for sorted sets:
 

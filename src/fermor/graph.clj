@@ -120,6 +120,7 @@
   (-transpose [g]
     (-transpose g (._getLabels g)))
   (-transpose [g labels]
+    ;; This will only include listed labels in the output graph
     (LinearGraph. (reduce (fn [^IMap edges label]
                             (if-let [edge (._getEdgeGraph g label)]
                               (.put edges label (.transpose edge))
