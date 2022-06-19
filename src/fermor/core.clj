@@ -265,7 +265,7 @@
    (apply concat (both-e* f labels (ensure-seq r)))))
 
 (defn out-v
-  "Returns a lazy seq of vertices out of a collection of edges."
+  "Returns a lazy seq of the out vertex of each edge (out)->(in)."
   [r]
   (cond
     (edge? r) [(out-vertex r)]
@@ -273,7 +273,7 @@
     :else (map out-vertex (ensure-seq r))))
 
 (defn in-v
-  "Returns a lazy seq of vertices in to a collection of edges."
+  "Returns a lazy seq of the in vertex of each edge (out)->(in)."
   [r]
   (cond
     (edge? r) [(in-vertex r)]

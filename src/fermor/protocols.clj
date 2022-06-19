@@ -177,8 +177,8 @@
   (-label [e] "Return the edge label."))
 
 (defprotocol EdgeVertices
-  (in-vertex [e] "Return the in vertex of the edge (in)-->(out).")
-  (out-vertex [e] "Return the out vertex of the edge (in)-->(out)."))
+  (in-vertex [e] "Return the in vertex of the edge (out)-->(in).")
+  (out-vertex [e] "Return the out vertex of the edge (out)-->(in)."))
 
 (defprotocol TraversalDirection
   (traversed-forward [e]))
