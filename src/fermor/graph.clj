@@ -8,12 +8,16 @@
            (java.util Optional)
            (clojure.lang IMeta)))
 
-(defn linear [x]
+(defn linear
+  "Make the graph mutable (but only therefore useable in linear code)"
+  [x]
   (cond (satisfies? Forked x) (to-linear x)
         (satisfies? Linear x) x
         :else (condition :unknown-type-for/linear x)))
 
-(defn forked [x]
+(defn forked
+  "Make the graph immutable."
+  [x]
   (cond (satisfies? Linear x) (to-forked x)
         (satisfies? Forked x) x
         :else (condition :unknown-type-for/forked x)))
@@ -21,18 +25,24 @@
 (declare ->LinearGraph ->ForkedGraph ->V ->E graph-equality -get-edge-document --in-edges --out-edges)
 
 (defn dag-edge
+  "Provide this as the value of edge-type when calling add-edges (the first time, when the edge type
+  is being created), and it will use this type of edge for all subsequent edges added with that label."
   (^IGraph [] (.linear (DirectedAcyclicGraph.)))
   (^IGraph [linear?]
    (if linear?
      (dag-edge)
      (.forked (dag-edge)))))
 (defn digraph-edge
+  "Provide this as the value of edge-type when calling add-edges (the first time, when the edge type
+  is being created), and it will use this type of edge for all subsequent edges added with that label."
   (^IGraph [] (.linear (DirectedGraph.)))
   (^IGraph [linear?]
    (if linear?
      (digraph-edge)
      (.forked (digraph-edge)))))
 (defn undirected-edge
+  "Provide this as the value of edge-type when calling add-edges (the first time, when the edge type
+  is being created), and it will use this type of edge for all subsequent edges added with that label."
   (^IGraph [] (.linear (io.lacuna.bifurcan.Graph.)))
   (^IGraph [linear?]
    (if linear?
@@ -491,13 +501,19 @@
                           (element-id (.in_v e)))]
           edge)))))
 
-(defn labels [^IEdgeGraphs g]
+(defn labels
+  "Return a list of edge labels present in the graph"
+  [^IEdgeGraphs g]
   (._getLabels g))
 
-(defn edge-graph ^IGraph [^IEdgeGraphs g label]
+(defn edge-graph
+  "Return the single-label graph of all edges with the given label."
+  ^IGraph [^IEdgeGraphs g label]
   (._getEdgeGraph g label))
 
 (defn edge-graphs
+  "Return a map of single-label graphs, one for each of the edges in the
+  graph (or just the specified edges)."
   ([^IEdgeGraphs g]
    (edge-graphs g (labels g)))
   ([^IEdgeGraphs g labels]
@@ -572,13 +588,16 @@
           (.get p))))))
 
 (defn edges-with-label?
+  "Returns true if the given vertex has any edges with the given label."
   ;; FIXME : is this correct in both directions?
   ([^V v label]
    (edges-with-label? v label (edge-graph (.graph v) label)))
   ([^V v label ^IGraph edge]
    (.isPresent (.indexOf edge (.id v)))))
 
-(defn vertices-with-edge [graph label]
+(defn vertices-with-edge
+  "Return all vertices that have an edge with the given label."
+  [graph label]
   (when-let [edge (edge-graph (-unwrap graph) label)]
     (map #(->V graph % nil nil) (.vertices edge))))
 
@@ -643,18 +662,30 @@
   (print-method o *out*))
 
 (defn v
+  "The printed representation of a vertex. If you handle the :default-graph
+  condition this will point to the vertex in that graph, but if not, it will
+  produce a vertex object which does not necessarily correspond to any vertex in
+  any actual graph."
   ([id]
    (->V (condition :default-graph nil optional) id nil nil))
   ([id document]
    (->V (condition :default-graph nil optional) id (Optional/ofNullable document) nil)))
 
 (defn e->
+  "The printed representation of an edge from the vertex with out-id to the
+  vertex in-id. If you handle the :default-graph condition this will point to
+  the correct edge for that graph, but if not, it will produce an edge object
+  which does not necessarily correspond to an edge in any actual graph."
   ([out-id label in-id]
    (->E label (v out-id) (v in-id) nil true nil))
   ([out-id label [document] in-id]
    (->E label (v out-id) (v in-id) (Optional/ofNullable document) true nil)))
 
 (defn e<-
+  "The printed representation of an edge to the vertex with out-id from the
+  vertex in-id. If you handle the :default-graph condition this will point to
+  the correct edge for that graph, but if not, it will produce an edge object
+  which does not necessarily correspond to an edge in any actual graph."
   ([out-id label in-id]
    (->E label (v out-id) (v in-id) nil false nil))
   ([out-id label [document] in-id]
