@@ -122,9 +122,7 @@
 (defn followed-forward?
   "Returns true if we followed an out-edge to get to this edge."
   [e]
-  (if (satisfies? fermor.protocols/TraversalDirection e)
-    (traversed-forward e)
-    (condition :traversal-direction/unknown e (default true))))
+  (traversed-forward e))
 
 (defn followed-reverse?
   "Returns true if we followed an in-edge to get to this edge."

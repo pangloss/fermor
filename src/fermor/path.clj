@@ -117,7 +117,10 @@
   (reverse-path [e]
     ^:reverse-path
     (lazy-seq
-     (cons (.element e) (when (.path e) (reverse-path (.path e)))))))
+     (cons (.element e) (when (.path e) (reverse-path (.path e))))))
+
+  TraversalDirection ;; see followed-forward?, followed-reverse?, go-back, go-on, other-v, same-v
+  (traversed-forward [e] (traversed-forward (.element e))))
 
 (deftype PGraph [graph metadata]
   Object
@@ -148,7 +151,7 @@
 
 (deftype ReverseSubpath [rpath metadata]
   Object
-  (equals [a b] (when (satisfies? ISubpath b)
+  (equals [a b] (when (satisfies? Path b)
                   (= (reverse-path a) (reverse-path b))))
   (hashCode [e] (.hashCode (reverse-path e)))
 
@@ -185,7 +188,7 @@
 
 (deftype VecSubpath [^clojure.lang.IPersistentVector path metadata]
   Object
-  (equals [a b] (when (satisfies? ISubpath b)
+  (equals [a b] (when (satisfies? Path b)
                   (= (reverse-path a) (reverse-path b))))
   (hashCode [e] (.hashCode (reverse-path e)))
 
@@ -224,7 +227,7 @@
 
 (defn subpath
   ([e]
-   (if (satisfies? ISubpath e)
+   (if (satisfies? Path e)
      e
      (ReverseSubpath. (reverse-path e) nil)))
   ([e from-end]
