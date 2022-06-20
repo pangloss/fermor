@@ -173,10 +173,15 @@
      (nil? r) nil
      :else (fast-traversal -in-edges-prepared (ensure-seq labels) r)))
   ([f labels r]
-   (cond
-     (vertex? r) [(f (-in-edges r (ensure-seq labels)))]
-     (nil? r) nil
-     :else (fast-traversal f -in-edges-prepared (ensure-seq labels) r))))
+   (if-let [labels (ensure-seq labels)]
+     (cond
+       (vertex? r) [(f (-in-edges r labels))]
+       (nil? r) nil
+       :else (fast-traversal f -in-edges-prepared labels r))
+     (cond
+       (vertex? r) [(f (-in-edges r))]
+       (nil? r) nil
+       :else (map (comp f -in-edges) r)))))
 
 (defn in-e
   "Returns a lazy seq of edges.
@@ -205,10 +210,15 @@
      (nil? r) nil
      :else (fast-traversal -out-edges-prepared (ensure-seq labels) r)))
   ([f labels r]
-   (cond
-     (vertex? r) [(f (-out-edges r (ensure-seq labels)))]
-     (nil? r) nil
-     :else (fast-traversal f -out-edges-prepared (ensure-seq labels) r))))
+   (if-let [labels (ensure-seq labels)]
+     (cond
+       (vertex? r) [(f (-out-edges r labels))]
+       (nil? r) nil
+       :else (fast-traversal f -out-edges-prepared labels r)))
+     (cond
+       (vertex? r) [(f (-out-edges r))]
+       (nil? r) nil
+       :else (map (comp f -out-edges) r))))
 
 (defn out-e
   "Returns a lazy seq of edges.
@@ -232,7 +242,7 @@
      (nil? r) nil
      :else
      (map (fn [v] (concat (-in-edges v) (-out-edges v)))
-          r)))
+       r)))
   ([labels r]
    (cond
      (vertex? r)
@@ -241,18 +251,23 @@
      (nil? r) nil
      :else
      (fast-traversal (fn [v l] (concat (-in-edges-prepared v l) (-out-edges-prepared v l)))
-                     (ensure-seq labels)
-                     r)))
+       (ensure-seq labels)
+       r)))
   ([f labels r]
-   (let [labels (ensure-seq labels)]
+   (if-let [labels (ensure-seq labels)]
      (cond
        (vertex? r) [(f (concat (-in-edges r labels) (-out-edges r labels)))]
        (nil? r) nil
        :else
        (fast-traversal f
-                       (fn [v l] (concat (-in-edges-prepared v l) (-out-edges-prepared v l)))
-                       labels
-                       r)))))
+         (fn [v l] (concat (-in-edges-prepared v l) (-out-edges-prepared v l)))
+         labels
+         r))
+     (cond
+       (vertex? r) [(concat (f (-in-edges r)) (f (-out-edges r)))]
+       (nil? r) nil
+       :else
+       (map (fn [v] (f (concat (-in-edges v) (-out-edges v)))) r)))))
 
 (defn both-e
   "Returns a lazy seq of edges.
@@ -322,7 +337,7 @@
 
 (defn both*
   "Returns a lazy seq of lazy seqs of vertices with edges pointing both in and out of this vertex "
-  ([r] (->> r both-e* other-v))
+  ([r] (both-e* other-v nil r))
   ([labels r] (both-e* other-v labels r))
   ([labels f r] (both-e* (comp f other-v) labels r)))
 
@@ -703,7 +718,7 @@
    (lazy-seq (extrude (*descend path control children coll *no-result-interval* 0)))))
 
 (defn descents
-  "Descents is a variant of descend which returns the path that entire descent
+  "Descents is a variant of descend which returns the entire descent
   path as a vector rather than just the resulting element.
 
    Note that the descent path is not the same as using with-path to produce
@@ -736,6 +751,7 @@
                   []))
         depth-pred (when-let [n (cond (nat-int? path-pred) path-pred (nat-int? pred) pred)]
                      (fn dpred [p] (< (count p) n)))
+        path-pred (if (nat-int? path-pred) nil path-pred)
         path-pred (if (and path-pred depth-pred)
                     (ev-pred path-pred depth-pred)
                     (or path-pred depth-pred))
