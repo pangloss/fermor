@@ -69,6 +69,13 @@
   [graph element-or-id document]
   (set-documents graph [[element-or-id document]]))
 
+(defn update-document
+  "Update the document for a given element."
+  ([graph element f]
+   (set-document graph element (f (get-document element))))
+  ([graph element f arg & args]))
+   (set-document graph element (apply f (get-document element) arg args)))
+
 (defn ensure-seq
   "Returns either nil or something sequential."
   [x]
