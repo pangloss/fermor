@@ -109,6 +109,15 @@
           (into [] (map edge-dimensions) eids)
           (into [] (r/map edge-dimensions eids)))))))
 
+(defn- mutating [x]
+  (fn
+    ([] x)
+    ([ctor]
+     (fn
+       ([] (ctor))
+       ([left right] x)))
+    ([a b] x)))
+
 (defn v*v-spacial-relationship [g]
   (let [vp (vp g)
         vc (vc g)
@@ -118,14 +127,30 @@
         (cm/get-row vp i))
       (cm/assign! (cm/submatrix xjoin [[(* vc i) vc] [2 2]])
         vp))
-    (dotimes [i (* vc vc)]
-      (let [row (cm/get-row xjoin i)
-            fp (cm/submatrix row [[0 2]])
-            tp (cm/submatrix row [[2 2]])
-            dist (cm/distance fp tp)]
-        (cm/mset! row 4 dist)))
-    xjoin))
+    (if false
+      (r/fold (mutating xjoin)
+        (fn [_ i]
+          (let [row (cm/get-row xjoin i)
+                fp (cm/submatrix row [[0 2]])
+                tp (cm/submatrix row [[2 2]])
+                diff (cm/sub fp tp)
+                dist (cm/distance fp tp)]
+            (cm/mset! row 4 dist)
+            (cm/mset! row 5 (cm/mget diff 0))
+            (cm/mset! row 6 (cm/mget diff 1))
+            xjoin))
+        (range (* vc vc)))
+      (dotimes [i (* vc vc)]
+        (let [row (cm/get-row xjoin i)
+              fp (cm/submatrix row [[0 2]])
+              tp (cm/submatrix row [[2 2]])
+              diff (cm/sub fp tp)
+              dist (cm/distance fp tp)]
+          (cm/mset! row 4 dist)
+          (cm/mset! row 5 (cm/mget diff 0))
+          (cm/mset! row 6 (cm/mget diff 1)))))))
 
+(into (vec (cm/array :vectorz [1 2])) [10])
 (time
   (v*v-spacial-relationship g))
 
