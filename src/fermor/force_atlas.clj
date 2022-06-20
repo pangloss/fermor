@@ -47,9 +47,10 @@
         ec (count triples)
         g
         ;; Metadata should be resilient on the graph object.
-        (with-meta g {:vertices (doto (cm/zero-array :vectorz [vc 7])
-                                  (cm/set-column! 0 (rand-ints vc))
-                                  (cm/set-column! 1 (rand-ints vc)))
+        (with-meta g {:vertices (cm/zero-array :vectorz [vc 4])
+                      :positions (doto (cm/zero-array :vectorz [vc 2])
+                                   (cm/set-column! 0 (rand-ints vc))
+                                   (cm/set-column! 1 (rand-ints vc)))
                       :edges (doto (cm/zero-array :vectorz [ec 5])
                                (cm/set-column! 0 (map second triples))
                                (cm/set-column! 3 (map first triples))
@@ -57,19 +58,19 @@
                       :vc vc :ec ec})]
     g))
 
-
 (defn em [g] (get (meta g) :edges))
 (defn vm [g] (get (meta g) :vertices))
+(defn vp [g] (get (meta g) :positions))
 (defn vc [g] (get (meta g) :vc))
 (defn ec [g] (get (meta g) :ec))
 
-(defn v-x [vm v] (cm/mget vm (g/get-document v) 0))
-(defn v-y [vm v] (cm/mget vm (g/get-document v) 1))
-(defn v-pos [vm v] (cm/select vm (g/get-document v) [0 1]))
-(defn v-dx [vm v] (cm/mget vm (g/get-document v) 2))
-(defn v-dy [vm v] (cm/mget vm (g/get-document v) 3))
-(defn v-centrality [vm v] (cm/mget vm (g/get-document v) 5))
-(defn v-squares [vm v] (cm/mget vm (g/get-document v) 6))
+(defn v-x [vp v] (cm/mget vp (g/get-document v) 0))
+(defn v-y [vp v] (cm/mget vp (g/get-document v) 1))
+(defn v-pos [vp v] (cm/get-row vp (g/get-document v)))
+(defn v-dx [vm v] (cm/mget vm (g/get-document v) 0))
+(defn v-dy [vm v] (cm/mget vm (g/get-document v) 1))
+(defn v-centrality [vm v] (cm/mget vm (g/get-document v) 2))
+(defn v-squares [vm v] (cm/mget vm (g/get-document v) 3))
 
 (defn e-weight [em e] (cm/mget em (g/get-document e) 0))
 (defn e-length [em e] (cm/mget em (g/get-document e) 1))
@@ -83,21 +84,18 @@
 (defn e-to* [e]
   (g/element-id (g/out-vertex e)))
 
-(defn v-pos [vm]
-  (cm/submatrix vm [nil [0 2]]))
-
-(defn magnitudes [g]
-  (->> (vm g) v-pos cm/rows (mapv cm/magnitude)))
+(defn dists-from-center [g]
+  (->> (vp g) cm/rows (mapv cm/magnitude)))
 
 (defn edge-dimensions [g]
   (let [vm (vm g)
         em (em g)
-        pos (v-pos vm)
+        vp (vp g)
         eids (range (ec g))]
     (let [from-idxs (cm/get-column em 3)
           to-idxs (cm/get-column em 4)
-          from-pos (cm/select pos from-idxs :all)
-          to-pos (cm/select pos to-idxs :all)
+          from-pos (cm/select vp from-idxs :all)
+          to-pos (cm/select vp to-idxs :all)
           edge-dimensions (fn edge-dimensions [eid]
                             (let [fp (cm/get-row from-pos (long (cm/select from-idxs eid)))
                                   tp (cm/get-row to-pos (long (cm/select to-idxs eid)))
@@ -111,8 +109,29 @@
           (into [] (map edge-dimensions) eids)
           (into [] (r/map edge-dimensions eids)))))))
 
+(defn v*v-spacial-relationship [g]
+  (let [vp (vp g)
+        vc (vc g)
+        xjoin (cm/zero-matrix :vectorz (* vc vc) 8)]
+    (doseq [i (range vc)]
+      (cm/assign! (cm/submatrix xjoin [[(* vc i) vc] [0 2]])
+        (cm/get-row vp i))
+      (cm/assign! (cm/submatrix xjoin [[(* vc i) vc] [2 2]])
+        vp))
+    (dotimes [i (* vc vc)]
+      (let [row (cm/get-row xjoin i)
+            fp (cm/submatrix row [[0 2]])
+            tp (cm/submatrix row [[2 2]])
+            dist (cm/distance fp tp)]
+        (cm/mset! row 4 dist)))
+    xjoin))
+
+(time
+  (v*v-spacial-relationship g))
+
+
 (do
-  (time (do (edge-dimensions g true) nil)))
+  (time (do (edge-dimensions g) nil)))
 
 (defn update-edge-dimensions! [g]
   (let [d (edge-dimensions g)
@@ -163,9 +182,6 @@
 (g/both (g/get-vertex g 122))
 
 (take 50 (g/both (g/both (g/with-paths (g/vertices g)))))
-
-(time
-  (count (magnitudes g)))
 
 (g/vertices g)
 
