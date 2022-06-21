@@ -63,24 +63,24 @@
             (force! node n coefficient)))))))
 
 (defn local-repulsion [node other ^double coefficient]
-  (let [lr 40.0]
-    (let [dist (v/sub (position node) (position other))
-          distance (max 0.1 (v/magsq dist))]
-      (when (and (pos? distance) (< distance lr))
-        (let [factor (/ (* coefficient (* (v-mass node) (v-mass other)))
-                       distance)
-              dist (v/mult dist factor)]
-          (vswap! (velocity! node) v/add dist)
-          (vswap! (velocity! other) v/sub dist))))))
+  (let [lr 30.0
+        dist (v/sub (position node) (position other))
+        distance (max 0.01 (v/magsq dist))]
+    (when (and (pos? distance) (< distance lr))
+      (let [factor (/ (* coefficient (* (v-mass node) (v-mass other)))
+                     distance)
+            dist (v/mult dist factor)]
+        (vswap! (velocity! node) v/add dist)
+        (vswap! (velocity! other) v/sub dist)))))
 
 (defn lin-repulsion [node other ^double coefficient]
   (let [dist (v/sub (position node) (position other))
-        distance (max 0.1 (v/magsq dist))]
-    (let [factor (/ (* coefficient (* (v-mass node) (v-mass other)))
-                   distance)
-          dist (v/mult dist factor)]
-      (vswap! (velocity! node) v/add dist)
-      (vswap! (velocity! other) v/sub dist))))
+        distance (max 0.01 (v/magsq dist))
+        factor (/ (* coefficient (* (v-mass node) (v-mass other))
+                    distance))
+        dist (v/mult dist factor)]
+    (vswap! (velocity! node) v/add dist)
+    (vswap! (velocity! other) v/sub dist)))
 
 (defn lin-attraction [out-v ^double edge-weight-influence ^double neg-coeff]
   ;; TODO: use pre-calculated edge length
@@ -90,9 +90,8 @@
                   in-v (g/in-vertex e)
                   n2 (doc in-v)
                   dist (v/sub (position n1) (position n2))
-                  distance (max 0.1 (v/magsq dist))
-                  factor (* edge-weight neg-coeff)
-                  dist (v/mult dist factor)]]
+                  #_#_distance (max 0.1 (v/magsq dist))
+                  dist (v/mult dist (* edge-weight neg-coeff))]]
       (vswap! (velocity! n1) v/add dist)
       (vswap! (velocity! n2) v/sub dist))))
 
@@ -193,8 +192,3 @@
          :traction traction :f (/ traction vc)
          :iter (inc iter) :friction friction
          :gravity gravity}))))
-
-(comment
-  (def triples (map (fn [[from e to]]
-                      [(ugf/id from) (rand-int 20) (ugf/id to)])
-                 (ugf/triples (ugf/read-ugf "/Users/dw/Downloads/bert-297.ugf")))))
