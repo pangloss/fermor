@@ -3,7 +3,9 @@
             [fastmath.core :as fm :refer [atan2]]
             [fastmath.vector :as fv :refer [vec2 dist]]
             [untether.ugf :as ugf]
-            [clojure.set :as set]))
+            [clojure.set :as set]
+            [clojure.core.reducers :as r])
+  (:import [fastmath.vector Vec2]))
 
 ;; The force atlas algo has 4 forces:
 ;; - friction
@@ -70,7 +72,6 @@
         ec (count triples)]
     (with-meta g {:vc vc :ec ec})))
 
-
 (defn attach-vertex-documents [g]
   (let [sqs (squares g)]
     (g/forked
@@ -85,45 +86,37 @@
         (g/linear g)
         (g/vertices g)))))
 
-
-(defn update-edge-documents [g]
-  (g/forked
-    (reduce (fn [lg e]
-              (let [from-doc (g/get-document (g/out-vertex e))
-                    to-doc (g/get-document (g/in-vertex e))
-                    fv @(:pos from-doc)
-                    tv @(:pos to-doc)
-                    ev (fv/sub fv tv)
-                    edoc (g/get-document e)]
-                (vreset! (:distance edoc) (fv/mag ev))
-                (vreset! (:angle edoc) (fv/heading ev))))
-      (g/linear g)
-      (g/out-e [:to] (g/vertices g)))))
-
-
-
 (defn attach-edge-documents [g]
   (g/forked
     (reduce (fn [lg e]
-              (let [from-doc (g/get-document (g/out-vertex e))
-                    to-doc (g/get-document (g/in-vertex e))
-                    fv @(:pos from-doc)
-                    tv @(:pos to-doc)
-                    ev (fv/sub fv tv)]
-                (g/set-document lg e
-                  {:distance (volatile! (fv/mag ev))
-                   :angle (volatile! (fv/heading ev))})))
+              (g/set-document lg e
+                {:length (volatile! 0)
+                 :angle (volatile! 0)}))
       (g/linear g)
       (g/out-e [:to] (g/vertices g)))))
+
+(defn update-edge-documents [g]
+  (r/fold
+    (fn ([] g) ([_ __] g))
+    (fn [g e]
+      (let [from-doc (g/get-document (g/out-vertex e))
+            to-doc (g/get-document (g/in-vertex e))
+            fv @(:pos from-doc)
+            tv @(:pos to-doc)
+            ev (fv/sub fv tv)
+            edoc (g/get-document e)]
+        (vreset! (:length edoc) (fv/mag ev))
+        (vreset! (:angle edoc) (fv/heading ev))
+        g))
+    (g/out-e [:to] (g/vertices g))))
 
 
 (defn make-graph [triples]
   (->> triples
     graph-from-triples
     attach-vertex-documents
-    attach-edge-documents))
-
-(def g (make-graph triples))
+    attach-edge-documents
+    update-edge-documents))
 
 (defn em [g] (get (meta g) :edges))
 (defn vm [g] (get (meta g) :vertices))
@@ -131,62 +124,22 @@
 (defn vc [g] (get (meta g) :vc))
 (defn ec [g] (get (meta g) :ec))
 
-(defn v-x [vp v] (cm/mget vp (g/get-document v) 0))
-(defn v-y [vp v] (cm/mget vp (g/get-document v) 1))
-(defn v-pos [vp v] (cm/get-row vp (g/get-document v)))
-(defn v-dx [vm v] (cm/mget vm (g/get-document v) 0))
-(defn v-dy [vm v] (cm/mget vm (g/get-document v) 1))
-(defn v-centrality [vm v] (cm/mget vm (g/get-document v) 2))
-(defn v-squares [vm v] (cm/mget vm (g/get-document v) 3))
+(defn v-pos ^Vec2 [v] @(:pos (g/get-document v)))
+(defn v-x [v] (.x (v-pos v)))
+(defn v-y [v] (.y (v-pos v)))
+(defn v-move ^Vec2 [v] @(:move (g/get-document v)))
+(defn v-dx [v] (.x (v-move v)))
+(defn v-dy [v] (.y (v-move v)))
+(defn v-degree [v] (:degree (g/get-document v)))
+(defn v-squares [vm v] (:squares (g/get-document v)))
 
-(defn e-weight [em e] (cm/mget em (g/get-document e) 0))
-(defn e-length [em e] (cm/mget em (g/get-document e) 1))
-(defn e-angle [em e] (cm/mget em (g/get-document e) 2))
-(defn e-from [em e] (long (cm/mget em (g/get-document e) 3)))
-(defn e-to [em e] (long (cm/mget em (g/get-document e) 4)))
+(defn e-weight [e] (:weight (g/get-document e)))
+(defn e-length [e] (:length (g/get-document e)))
+(defn e-angle [e] (:angle (g/get-document e)))
 
-(defn e-from* [e]
-  (g/element-id (g/in-vertex e)))
+(comment
+  (def triples (map (fn [[from e to]]
+                      [(ugf/id from) (rand-int 20) (ugf/id to)])
+                 (ugf/triples (ugf/read-ugf "/Users/dw/Downloads/bert-297.ugf"))))
 
-(defn e-to* [e]
-  (g/element-id (g/out-vertex e)))
-
-(defn update-edge-dimensions! [g]
-  (let [d (edge-dimensions g)
-        em (em g)]
-    (set-column! em 1 (get-column d 0))
-    (set-column! em 2 (get-column d 1))))
-
-(def triples (map (fn [[from e to]]
-                    [(ugf/id from) (rand-int 20) (ugf/id to)])
-               (ugf/triples (ugf/read-ugf "/Users/dw/Downloads/bert-297.ugf"))))
-
-(def g (graph-from-triples triples))
-
-;;  #path/V [(v 139) <-:to- (v 140) -:to-> (v 127) <-:to- (v 133) <-:to- (v 139)]
-
-(count (squares g))
-
-(sort-by val (squares g))
-
-(map #(fermor.path/subpath % 2) (shapes 3 g))
-
-(filter #(= 140 (g/element-id %))
-  (concat
-    (shapes 3 g)
-    (shapes 4 g)))
-
-(count (shapes 4 g))
-
-(= (seq (g/path (first sqs))) (g/reverse-path (g/path (nth sqs))))
-
-(g/both (g/get-vertex g 122))
-
-(take 50 (g/both (g/both (g/with-paths (g/vertices g)))))
-
-(g/vertices g)
-
-triples
-
-(g/both [(g/get-vertex g 0)])
-(map (juxt identity g/both) (g/vertices g))
+  (def g (make-graph triples)))
