@@ -67,20 +67,20 @@
     (let [dist (v/sub (position node) (position other))
           distance (max 0.1 (v/magsq dist))]
       (when (and (pos? distance) (< distance lr))
-        (let [factor (/ (* coefficient ^double (v-mass node) ^double (v-mass other))
+        (let [factor (/ (* coefficient (* (v-mass node) (v-mass other)))
                        distance)
               dist (v/mult dist factor)]
-          (vswap! (position! node) v/add dist)
-          (vswap! (position! other) v/sub dist))))))
+          (vswap! (velocity! node) v/add dist)
+          (vswap! (velocity! other) v/sub dist))))))
 
 (defn lin-repulsion [node other ^double coefficient]
   (let [dist (v/sub (position node) (position other))
         distance (max 0.1 (v/magsq dist))]
-    (let [factor (/ (* coefficient ^double (v-mass node) ^double (v-mass other))
+    (let [factor (/ (* coefficient (* (v-mass node) (v-mass other)))
                    distance)
           dist (v/mult dist factor)]
-      (vswap! (position! node) v/add dist)
-      (vswap! (position! other) v/sub dist))))
+      (vswap! (velocity! node) v/add dist)
+      (vswap! (velocity! other) v/sub dist))))
 
 (defn lin-attraction [out-v ^double edge-weight-influence ^double neg-coeff]
   ;; TODO: use pre-calculated edge length
@@ -93,14 +93,14 @@
                   distance (max 0.1 (v/magsq dist))
                   factor (* edge-weight neg-coeff)
                   dist (v/mult dist factor)]]
-      (vswap! (position! n1) v/add dist)
-      (vswap! (position! n2) v/sub dist))))
+      (vswap! (velocity! n1) v/add dist)
+      (vswap! (velocity! n2) v/sub dist))))
 
 (defn strong-gravity [node ^double gravity*coefficient]
   (when-not (zero? gravity*coefficient)
     (let [factor (* gravity*coefficient ^double (v-mass node))
           gravity (v/emult (position node) (v/vec2 factor (* factor 0.75 #_ 0.33)))]
-      (vswap! (position! node) v/add gravity))))
+      (vswap! (velocity! node) v/add gravity))))
 
 (defn calculate-tuning-info [^doubles arr v]
   (let [swinging (aget arr 0)
@@ -155,22 +155,28 @@
           swinging (aget arr 0)
           traction (aget arr 1)
           jitter-tolerance 0.02
-          jt (* jitter-tolerance
-               (min 10.0 (* (* 0.05 (fm/sqrt vc))
-                           (/ traction
-                             (fm/sq vc)))))
+          chaos-threshold (* jitter-tolerance
+                            (min 10.0 (* (* 0.05 (fm/sqrt vc))
+                                        (/ traction
+                                          (fm/sq vc)))))
           min-speed-efficiency 0.05
           ;; protection against erratic behavior
-          [^double speed-efficiency ^double jt] (if (< 2.0 (/ swinging traction))
-                                                  [(cond-> speed-efficiency
-                                                     (< min-speed-efficiency speed-efficiency) (* 0.5))
-                                                   (max jt jitter-tolerance)]
-                                                  [speed-efficiency jt])
-          target-speed (* jt speed-efficiency (/ traction swinging))
-          speed-efficiency (cond (< (* jt traction) swinging) (cond-> speed-efficiency
-                                                                (< min-speed-efficiency speed-efficiency) (* 0.7))
-                                 (< 1000 speed) (* speed-efficiency 1.3)
-                                 :else speed-efficiency)
+          [^double speed-efficiency ^double chaos-threshold]
+          (if (< 2.0 (/ swinging traction)) ;; swinging without as much traction
+            [(if (< min-speed-efficiency speed-efficiency) ;; above min speed
+               (* speed-efficiency 0.5) ;; slow down a lot
+               speed-efficiency)
+             (max chaos-threshold jitter-tolerance)]
+            [speed-efficiency chaos-threshold])
+          target-speed (* chaos-threshold speed-efficiency (/ traction swinging))
+          speed-efficiency
+          (cond (< (* chaos-threshold traction) swinging) ;; too much chaos
+                (if (< min-speed-efficiency speed-efficiency) ;; and above minimum speed
+                 (* speed-efficiency 0.7) ;; slow down
+                 speed-efficiency)
+                (< 1000 speed) ;; not moving too fast
+                (* speed-efficiency 1.3) ;; speed up
+                :else speed-efficiency)
           max-rise 0.5
           speed (+ speed (min (- target-speed speed) (* max-rise speed)))]
       (r/fold

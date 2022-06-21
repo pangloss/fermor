@@ -84,7 +84,7 @@
                 (g/set-document lg v
                   {:id (g/element-id v)
                    :position (volatile! (vec2 (rand-int 100) (rand-int 100)))
-                   :velocity (volatile! (vec2 0 0))
+                   :velocity (volatile! (vec2 (rand) (rand)))
                    :prev-velocity (volatile! (vec2 0 0))
                    :size 1.0
                    :mass 1.0
