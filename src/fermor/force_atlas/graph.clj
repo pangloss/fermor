@@ -7,6 +7,11 @@
             [clojure.core.reducers :as r])
   (:import [fastmath.vector Vec2]))
 
+(fm/use-primitive-operators)
+
+(set! *warn-on-reflection* true)
+(set! *unchecked-math* :warn-on-boxed)
+
 ;; The force atlas algo has 4 forces:
 ;; - friction
 ;; - gravity
@@ -31,7 +36,7 @@
 ;; There are a few oddball values that also get calculated like "traction",
 ;; which I use to wangle out and adjustment to the friction per-frame.
 
-(defn shapes [sides g]
+(defn shapes [^long sides g]
   (g/descend []
       (fn [path e]
         (let [r (cond
@@ -63,7 +68,7 @@
 (defn graph-from-triples [triples]
   (let [edges (map-indexed
                 (fn [eid [from w to]]
-                  [from to eid])
+                  [from to w])
                 triples)
         g (-> (g/graph)
             (g/add-edges :to edges)
@@ -78,9 +83,11 @@
       (reduce (fn [lg v]
                 (g/set-document lg v
                   {:id (g/element-id v)
-                   :pos (volatile! (vec2 (rand-int 100) (rand-int 100)))
-                   :move (volatile! (vec2 0 0))
-                   :size 1
+                   :position (volatile! (vec2 (rand-int 100) (rand-int 100)))
+                   :velocity (volatile! (vec2 0 0))
+                   :prev-velocity (volatile! (vec2 0 0))
+                   :size 1.0
+                   :mass 1.0
                    :degree (g/degree v)
                    :squares (sqs v 0)}))
         (g/linear g)
@@ -90,7 +97,8 @@
   (g/forked
     (reduce (fn [lg e]
               (g/set-document lg e
-                {:length (volatile! 0)
+                {:weight (g/get-document e)
+                 :length (volatile! 0)
                  :angle (volatile! 0)}))
       (g/linear g)
       (g/out-e [:to] (g/vertices g)))))
@@ -101,8 +109,8 @@
     (fn [g e]
       (let [from-doc (g/get-document (g/out-vertex e))
             to-doc (g/get-document (g/in-vertex e))
-            fv @(:pos from-doc)
-            tv @(:pos to-doc)
+            fv @(:position from-doc)
+            tv @(:position to-doc)
             ev (fv/sub fv tv)
             edoc (g/get-document e)]
         (vreset! (:length edoc) (fv/mag ev))
@@ -118,28 +126,34 @@
     attach-edge-documents
     update-edge-documents))
 
-(defn em [g] (get (meta g) :edges))
-(defn vm [g] (get (meta g) :vertices))
-(defn vp [g] (get (meta g) :positions))
-(defn vc [g] (get (meta g) :vc))
-(defn ec [g] (get (meta g) :ec))
+(defn vc ^long [g] (get (meta g) :vc))
+(defn ec ^long [g] (get (meta g) :ec))
 
-(defn v-pos ^Vec2 [v] @(:pos (g/get-document v)))
-(defn v-x [v] (.x (v-pos v)))
-(defn v-y [v] (.y (v-pos v)))
-(defn v-move ^Vec2 [v] @(:move (g/get-document v)))
-(defn v-dx [v] (.x (v-move v)))
-(defn v-dy [v] (.y (v-move v)))
-(defn v-degree [v] (:degree (g/get-document v)))
-(defn v-squares [vm v] (:squares (g/get-document v)))
-
-(defn e-weight [e] (:weight (g/get-document e)))
-(defn e-length [e] (:length (g/get-document e)))
-(defn e-angle [e] (:angle (g/get-document e)))
 
 (comment
   (def triples (map (fn [[from e to]]
                       [(ugf/id from) (rand-int 20) (ugf/id to)])
                  (ugf/triples (ugf/read-ugf "/Users/dw/Downloads/bert-297.ugf"))))
 
-  (def g (make-graph triples)))
+  (time (def g (make-graph triples))))
+
+(def doc g/get-document)
+
+(defn position! [doc] (:position doc))
+(defn position ^Vec2 [doc] @(:position doc))
+(defn v-x ^double [doc] (.x (position doc)))
+(defn v-y ^double [doc] (.y (position doc)))
+(defn velocity! [doc] (:velocity doc))
+(defn velocity ^Vec2 [doc] @(:velocity doc))
+(defn v-dx ^double [doc] (.x (velocity doc)))
+(defn v-dy ^double [doc] (.y (velocity doc)))
+(defn prev-velocity! [doc] (:prev-velocity doc))
+(defn prev-velocity ^Vec2 [doc] @(:prev-velocity doc))
+(defn v-mass ^double [doc] (:mass doc))
+(defn v-size ^double [doc] (:size doc))
+(defn v-degree ^long [doc] (:degree doc))
+(defn v-squares ^long [doc] (:squares doc))
+
+(defn e-weight ^double [doc] (:weight doc))
+(defn e-length ^double [doc] @(:length doc))
+(defn e-angle ^double [doc] @(:angle doc))
