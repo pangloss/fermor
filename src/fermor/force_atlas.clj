@@ -136,7 +136,7 @@
                    (min 0.95)
                    (max 0.2))
         gravity (if (< 150 iter 450)
-                  (* 2 -0.005)
+                  (* 4 -0.005)
                   0.0)
         coefficient 25.0
         neg-coeff (- coefficient)
