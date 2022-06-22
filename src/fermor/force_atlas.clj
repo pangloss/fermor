@@ -127,6 +127,10 @@
                             (v/mag (v/add prev-vel vel))))))))
 
 (defn force-atlas [graph]
+  ;; TODO:
+  ;; - with a larger graph, some phases need more time. Especially the gravity phase can take longer if the net spread out further. I think
+  ;;   gravity should run until the (/ (sqrt traction) vc) or (/ traction (pow vc 1.8)) number gets to about 1.0 or less. The sqrt version
+  ;;   seems a bit more jitter resistant?
   (let [{:keys [^long vc ^long ec ^long iter ^double speed ^double speed-efficiency ^long traction]
          :or {iter 0 speed 1.0 speed-efficiency 1.0}}
         (meta graph)
@@ -200,6 +204,6 @@
         graph
         {:vc vc :ec ec
          :speed speed :speed-efficiency speed-efficiency :swinging swinging
-         :traction traction :f (/ traction vc)
+         :traction traction :f (/ traction (fm/pow vc 1.8))
          :iter (inc iter) :friction friction
          :gravity gravity}))))
