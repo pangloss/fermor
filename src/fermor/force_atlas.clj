@@ -3,8 +3,7 @@
             [fermor.force-atlas.graph :refer :all]
             [clojure.core.reducers :as r]
             [fastmath.core :as fm]
-            [fastmath.vector :as v]
-            [untether.ugf :as ugf])
+            [fastmath.vector :as v])
   (:import [fastmath.vector Vec2]))
 
 (fm/use-primitive-operators)

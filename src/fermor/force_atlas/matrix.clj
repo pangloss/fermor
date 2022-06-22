@@ -4,8 +4,7 @@
             [clojure.core.matrix.linear :as l]
             [clojure.core.reducers :as r]
             [fastmath.core :as fm :refer [atan2]]
-            [fastmath.vector :as fmv]
-            [untether.ugf :as ugf]))
+            [fastmath.vector :as fmv]))
 
 ;; The force atlas algo has 4 forces:
 ;; - friction
@@ -163,12 +162,6 @@
         em (em g)]
     (set-column! em 1 (get-column d 0))
     (set-column! em 2 (get-column d 1))))
-
-(def triples (map (fn [[from e to]]
-                    [(ugf/id from) (rand-int 20) (ugf/id to)])
-               (ugf/triples (ugf/read-ugf "/Users/dw/Downloads/bert-297.ugf"))))
-
-(def g (graph-from-triples triples))
 
 (defn shapes [sides g]
   (g/descend []

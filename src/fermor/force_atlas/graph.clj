@@ -2,7 +2,6 @@
   (:require [fermor.core :as g]
             [fastmath.core :as fm :refer [atan2]]
             [fastmath.vector :as fv :refer [vec2 dist]]
-            [untether.ugf :as ugf]
             [clojure.set :as set]
             [clojure.core.reducers :as r]
             [fastmath.vector :as v])

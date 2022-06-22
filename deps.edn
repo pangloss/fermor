@@ -7,8 +7,7 @@
            com.xn--lgc/pure-conditioning {:git/url "https://github.com/pangloss/pure-conditioning"
                                           :sha "f605800bcbdf80a408c60d8e60bb6cd8222f17c6"}
            net.mikera/core.matrix {:mvn/version "0.62.0"}
-           net.mikera/vectorz-clj {:mvn/version "0.48.0"}
-           com.untetherai/ugf {:local/root "../../uai/ugf/clj"}}
+           net.mikera/vectorz-clj {:mvn/version "0.48.0"}}
  :aliases {:test     {:extra-paths ["test"]
                       :jvm-opts ["-XX:-OmitStackTraceInFastThrow"]
                       :extra-deps  {aysylu/loom {:mvn/version "1.0.2"}}}}}
