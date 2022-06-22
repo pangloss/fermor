@@ -4,7 +4,8 @@
             [fastmath.vector :as fv :refer [vec2 dist]]
             [untether.ugf :as ugf]
             [clojure.set :as set]
-            [clojure.core.reducers :as r])
+            [clojure.core.reducers :as r]
+            [fastmath.vector :as v])
   (:import [fastmath.vector Vec2]))
 
 (fm/use-primitive-operators)
@@ -85,18 +86,19 @@
   (let [sqs (squares g)]
     (g/forked
       (reduce (fn [lg v]
-                (g/set-document lg v
-                  (VDoc.
-                     #_id (g/element-id v)
-                     #_position (vec2
-                                  (- ^long (rand-int 100) 50)
-                                  (- ^long (rand-int 100) 50))
-                     #_velocity (vec2 (- ^double (rand) 10) (- ^double (rand) 1.0))
-                     #_prev-velocity (vec2 (- ^double (rand) 1.0) (- ^double (rand) 1.0))
-                     #_size 1.0
-                     #_mass 1.0
-                     #_degree (g/degree v)
-                     #_squares (sqs v 0))))
+                (let [pos (vec2 (- ^long (rand-int 100) 50)
+                                (- ^long (rand-int 100) 50))
+                      vel (v/mult pos (+ 500 ^long (rand-int 500)))]
+                  (g/set-document lg v
+                    (VDoc.
+                        #_id (g/element-id v)
+                        #_position pos
+                        #_velocity vel
+                        #_prev-velocity vel
+                        #_size 1.0
+                        #_mass 1.0
+                        #_degree (g/degree v)
+                        #_squares (sqs v 0)))))
         (g/linear g)
         (g/vertices g)))))
 
