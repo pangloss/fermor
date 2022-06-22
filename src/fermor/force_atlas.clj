@@ -4,7 +4,8 @@
             [clojure.core.reducers :as r]
             [fastmath.core :as fm]
             [fastmath.vector :as v]
-            [untether.ugf :as ugf]))
+            [untether.ugf :as ugf])
+  (:import [fastmath.vector Vec2]))
 
 (fm/use-primitive-operators)
 
@@ -47,59 +48,72 @@
 
 (defn apply-deltas [v ^double speed ^double friction]
   (let [vel (velocity v) ;; dx ...
+        vel (v/rotate vel (* 0.05 (rand)))
+        #_#_
+        vel (v/sub vel
+              ;; introduce a little noise to kill oscilations
+              (v/emult vel
+                (v/mult (v/generate-vec2 rand) 0.10)))
         accel (v/sub (prev-velocity v) vel)  ;; ddx...
         swinging (* ^double (v-mass v) (v/mag accel))
         factor (/ speed (+ 1.0 (fm/sqrt (* speed swinging))))]
-    (vswap! (position! v) v/add (v/mult vel factor))
-    (vreset! (velocity! v) (v/mult vel friction))
-    (vreset! (prev-velocity! v) vel)))
+    (swap-position v v/add (v/mult vel factor))
+    (set-prev-velocity v vel)
+    (set-velocity v (v/mult vel friction))))
 
 (defn ->apply-force [force! ^double theta ^double coefficient]
   (fn apply-force [vertex-docs node]
     (let [pos (position node)]
       (doseq [n vertex-docs]
         (let [distance (v/dist pos (position n))]
+          ;; if nodes are super close together, the repulsion forces go in random directions and
+          ;; clumps will get locked together in little balls.
           (when (< (v-size n) (* distance theta))
             (force! node n coefficient)))))))
 
 (defn local-repulsion [node other ^double coefficient]
   (let [lr 30.0
-        dist (v/sub (position node) (position other))
-        distance (max 0.01 (v/magsq dist))]
-    (when (and (pos? distance) (< distance lr))
+        dv (v/sub (position node) (position other))
+        distance (max 0.01 (v/mag dv))]
+    (when (and (< distance lr) (pos? distance))
       (let [factor (/ (* coefficient (* (v-mass node) (v-mass other)))
-                     distance)
-            dist (v/mult dist factor)]
-        (vswap! (velocity! node) v/add dist)
-        (vswap! (velocity! other) v/sub dist)))))
+                     (/ distance 2.0))
+            push (v/mult dv factor)]
+        (swap-velocity node v/add push)
+        (swap-velocity other v/sub push)))))
 
 (defn lin-repulsion [node other ^double coefficient]
-  (let [dist (v/sub (position node) (position other))
-        distance (max 0.01 (v/magsq dist))
+  (let [dv (v/sub (position node) (position other))
+        distance (max 0.01 (v/mag dv))
         factor (/ (* coefficient (* (v-mass node) (v-mass other))
-                    distance))
-        dist (v/mult dist factor)]
-    (vswap! (velocity! node) v/add dist)
-    (vswap! (velocity! other) v/sub dist)))
+                    (/ distance 2)))
+        push (v/mult dv factor)]
+    (swap-velocity node v/add push)
+    (swap-velocity other v/sub push)))
 
-(defn lin-attraction [out-v ^double edge-weight-influence ^double neg-coeff]
-  ;; TODO: use pre-calculated edge length
+(defn lin-attraction [out-v ^double edge-weight-influence ^double neg-coeff ^double theta]
   (let [n1 (doc out-v)]
     (doseq [e (g/out-edges out-v [:to])
-            :let [edge-weight (fm/pow (e-weight (g/get-document e)) edge-weight-influence)
-                  in-v (g/in-vertex e)
-                  n2 (doc in-v)
-                  dist (v/sub (position n1) (position n2))
-                  #_#_distance (max 0.1 (v/magsq dist))
-                  dist (v/mult dist (* edge-weight neg-coeff))]]
-      (vswap! (velocity! n1) v/add dist)
-      (vswap! (velocity! n2) v/sub dist))))
+            :let [n2 (doc (g/in-vertex e))
+                  edge (g/get-document e)
+                  edge-weight (fm/pow (e-weight edge) edge-weight-influence)
+                  too-close (* ^double (length edge) (* 5.0 theta))
+                  pull (v/mult (edge-vector edge) (* edge-weight neg-coeff))]]
+      ;; if distance is too short, push the edge back off
+      (if (and (< (v-size n1) too-close)
+            (< (v-size n2) too-close))
+        (do ;; do the usual thing
+          (swap-velocity n1 v/add pull)
+          (swap-velocity n2 v/sub pull))
+        (do ;; do the opposite: push away
+          (swap-velocity n1 v/sub (v/mult pull 1.0))
+          (swap-velocity n2 v/sub (v/mult pull 1.0)))))))
 
 (defn strong-gravity [node ^double gravity*coefficient]
   (when-not (zero? gravity*coefficient)
     (let [factor (* gravity*coefficient ^double (v-mass node))
           gravity (v/emult (position node) (v/vec2 factor (* factor 0.75 #_ 0.33)))]
-      (vswap! (velocity! node) v/add gravity))))
+      (swap-velocity node v/add gravity))))
 
 (defn calculate-tuning-info [^doubles arr v]
   (let [swinging (aget arr 0)
@@ -113,8 +127,7 @@
                             (v/mag (v/add prev-vel vel))))))))
 
 (defn force-atlas [graph]
-  (let [vs (g/vertices graph)
-        {:keys [^long vc ^long ec ^long iter ^double speed ^double speed-efficiency ^long traction]
+  (let [{:keys [^long vc ^long ec ^long iter ^double speed ^double speed-efficiency ^long traction]
          :or {iter 0 speed 1.0 speed-efficiency 1.0}}
         (meta graph)
         traction (or traction (* 3500 vc))
@@ -123,22 +136,20 @@
                    (min 0.95)
                    (max 0.2))
         gravity (if (< 150 iter 450)
-                  -0.005
+                  (* 2 -0.005)
                   0.0)
         coefficient 25.0
         neg-coeff (- coefficient)
         g*coeff (* gravity coefficient)
-        theta 0.6
-        vds (g/documents vs)
-        ;; Note: lowering the minimum allowed value of the repulsion coefficient
-        ;; scaling to around 0.1 produces a very tightly packed graph that may
-        ;; be good for PAR:
+        theta 0.4
         repulsion-force! (->apply-force
-                           (if (< 0 iter 250)
+                           (if (< -1 iter 250)
                              lin-repulsion
                              local-repulsion)
                            theta
-                           (* coefficient (max 0.2 (min (/ 50.0 iter) 4.0))))]
+                           (* coefficient (max 0.2 (min (/ 50.0 iter) 4.0))))
+        vs (into [] (g/vertices graph))
+        vds (into [] (g/documents vs))]
     ;; I use r/fold to do a parallelized iteration through the vertices and edges
     (r/fold
       (fn ([] nil) ([a b] nil))
@@ -148,7 +159,7 @@
       vds)
     (r/fold
       (fn ([] nil) ([a b] nil))
-      (fn [_ v] (lin-attraction v edge-weight-influence neg-coeff))
+      (fn [_ v] (lin-attraction v edge-weight-influence neg-coeff theta))
       vs)
     (let [^doubles arr (reduce calculate-tuning-info (double-array [0.0 0.0]) vds)
           swinging (aget arr 0)
@@ -184,7 +195,7 @@
           (apply-deltas v speed friction))
         vds)
       ;; TODO enable:
-      ;; (update-edge-documents graph)
+      (update-edge-documents graph)
       (with-meta
         graph
         {:vc vc :ec ec
