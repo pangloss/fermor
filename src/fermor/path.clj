@@ -312,6 +312,12 @@
       e
       (recur e'))))
 
+(defn path-vertices [path]
+  (filter vertex? path))
+
+(defn path-edges [path]
+  (filter edge? path))
+
 (defn cyclic-path?
   "Returns any edge that is detected more than once in a path. This does not guarantee that
   the algorithm is actually in a cycle, but it is a good indicator.

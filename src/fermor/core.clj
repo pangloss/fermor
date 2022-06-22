@@ -34,7 +34,8 @@
                            ;; read printed graph elements
                            v e-> e<-)
              ;; Path
-             (fermor.path with-path path? path subpath no-path no-path! cyclic-path?)
+             (fermor.path with-path path? path subpath no-path no-path! cyclic-path?
+               path-vertices path-edges)
              ;; Kind Graph
              (fermor.kind-graph V E-> E<-))
 
@@ -907,7 +908,7 @@
 
 (defn with
   "Filters the route for elements where the result of calling the function f
-   (fn [v]) are equal to v. If v is a set, then check that the result of
+   (fn [e]) are equal to v. If v is a set, then check that the result of
    calling f is in the set."
   [f v r]
   (if (set? v)
