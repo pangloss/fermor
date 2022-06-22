@@ -45,6 +45,16 @@ In my examples below I will try to follow the pattern of decomposing functions
 into small atomic units. This decomposition leads to surprising flexibility
 without any performance overhead at all.
 
+## Force directed graph layout
+
+This project also includes a force directed layout engine that was originally
+based on Force Atlas in Gephi. It has been substantially changed and behaves 
+very differently from Force Atlas now, though.
+
+My goal with this layout engine is to rapidly unfold nets that look like long
+chains, minimizing unneeded crossings and producing a final layout that is
+reasonably dense in a minimal rectangular area.
+
 ### Introduction
 
 To traverse from one sequence of vertices to a related sequence of vertices
