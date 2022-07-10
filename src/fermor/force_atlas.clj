@@ -60,7 +60,7 @@
             (force! node n coefficient)))))))
 
 (defn local-repulsion [node other ^double coefficient]
-  (let [lr 30.0
+  (let [lr 40.0
         dv (v/sub (position node) (position other))
         distance (max 0.01 (v/mag dv))]
     (when (and (< distance lr) (pos? distance))
@@ -84,7 +84,9 @@
     (doseq [e (g/out-edges out-v [:to])
             :let [n2 (doc (g/in-vertex e))
                   edge (g/get-document e)
-                  edge-weight (fm/pow (e-weight edge) edge-weight-influence)
+                  sq (if (or (pos? (v-squares n1)) (pos? (v-squares n2))) 2 0.1)
+                  edge-weight (fm/pow (* sq
+                                        (e-weight edge)) edge-weight-influence)
                   too-close (* ^double (length edge) (* 5.0 theta))
                   pull (v/mult (edge-vector edge) (* edge-weight neg-coeff))]]
       ;; if distance is too short, push the edge back off
@@ -119,7 +121,7 @@
   ;; - with a larger graph, some phases need more time. Especially the gravity phase can take longer if the net spread out further. I think
   ;;   gravity should run until the (/ (sqrt traction) vc) or (/ traction (pow vc 1.8)) number gets to about 1.0 or less. The sqrt version
   ;;   seems a bit more jitter resistant?
-  (let [{:keys [^long vc ^long ec ^long iter ^double speed ^double speed-efficiency ^long traction]
+  (let [{:keys [^long vc ^long ec ^long iter ^double speed ^double speed-efficiency ^long traction ^double default-gravity]
          :or {iter 0 speed 1.0 speed-efficiency 1.0}}
         (meta graph)
         traction (or traction (* 3500 vc))
@@ -127,9 +129,10 @@
         friction (-> (- 1 (* 0.05 (/ traction (fm/pow vc 1.8))))
                    (min 0.95)
                    (max 0.2))
-        gravity (if (< 150 iter 450)
-                  (* 4 -0.005)
-                  0.0)
+        extend 0
+        gravity (if (< 150 iter (+ extend 450))
+                  (* 2 4 -0.005)
+                  (or default-gravity 0.0))
         coefficient 25.0
         neg-coeff (- coefficient)
         g*coeff (* gravity coefficient)
@@ -194,4 +197,5 @@
          :speed speed :speed-efficiency speed-efficiency :swinging swinging
          :traction traction :f (/ traction (fm/pow vc 1.8))
          :iter (inc iter) :friction friction
+         :default-gravity default-gravity
          :gravity gravity}))))
