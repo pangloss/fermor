@@ -1,9 +1,9 @@
 {:paths   ["src"]
- :deps    {org.clojure/clojure          {:mvn/version "1.10.3"}
+ :deps    {org.clojure/clojure          {:mvn/version "1.11.1"}
            potemkin/potemkin            {:mvn/version "0.4.5"}
            generateme/fastmath          {:mvn/version "2.1.8" :exclusions [com.github.haifengl/smile-mkl]}
-           io.lacuna/bifurcan           {:mvn/version "0.2.0-alpha4"}
-           org.flatland/ordered         {:mvn/version "1.5.9"}
+           io.lacuna/bifurcan           {:mvn/version "0.2.0-alpha6"}
+           org.flatland/ordered         {:mvn/version "1.15.10"}
            com.xn--lgc/pure-conditioning {:git/url "https://github.com/pangloss/pure-conditioning"
                                           :sha "f605800bcbdf80a408c60d8e60bb6cd8222f17c6"}}
  :aliases {:test     {:extra-paths ["test"]
