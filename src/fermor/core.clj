@@ -1,6 +1,6 @@
 (ns fermor.core
   (:require [pure-conditioning :refer [condition manage lazy-conditions error default]]
-            [potemkin :refer [import-vars]]
+            [potemkin :refer [import-vars import-def]]
             [flatland.ordered.set :refer [ordered-set]]
             [fermor.protocols :as proto :refer [Wrappable -out-edges -in-edges
                                                 traversed-forward -label -unwrap
@@ -39,6 +39,9 @@
              ;; Kind Graph
              (fermor.kind-graph V E-> E<-))
 
+;; Provide aliases of element-id since I always forget it's not vertex-id, etc.
+(import-def fermor.protocols/element-id vertex-id)
+(import-def fermor.protocols/element-id edge-id)
 
 (defn graph
   "Return the graph associated with the given element. If x is a graph, return
