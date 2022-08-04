@@ -1,6 +1,6 @@
 (ns fermor.kind-graph
   (:use fermor.protocols)
-  (:require [fermor.graph :refer [print-edge v e-> e<- ->V]]
+  (:require [fermor.graph :refer [print-edge v e-> e->in ->V]]
             [clojure.pprint :refer [simple-dispatch]])
   (:import (fermor.protocols KindId)))
 
@@ -127,7 +127,7 @@
   (print-method o *out*))
 
 (defmethod print-method KEdge [^KEdge e ^java.io.Writer w]
-  (print-edge "(E-> " "(E<- " (-unwrap e) w))
+  (print-edge "(E-> " "(E->in " (-unwrap e) w))
 
 (defmethod simple-dispatch KEdge [o]
   (print-method o *out*))
@@ -144,8 +144,8 @@
   ([out-id label [document] in-id]
    (->KEdge (e-> out-id label [document] in-id))))
 
-(defn E<-
+(defn E->in
   ([out-id label in-id]
-   (->KEdge (e<- out-id label in-id)))
+   (->KEdge (e->in out-id label in-id)))
   ([out-id label [document] in-id]
-   (->KEdge (e<- out-id label [document] in-id))))
+   (->KEdge (e->in out-id label [document] in-id))))

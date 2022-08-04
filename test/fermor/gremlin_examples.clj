@@ -1,4 +1,4 @@
-(ns fermor.gremlin-examples-test
+(ns fermor.gremlin-examples
   (:require  [clojure.test :refer [deftest is testing]]
              [fermor.protocols :refer [*compact-path-printing*]]
              [fermor.core :refer :all :as c :exclude [is]]))
@@ -68,11 +68,11 @@
 (deftest traverse-graph []
   (is (= [[(v :blueprintsJob3)
            (v :blueprints)
-           (e<- :blueprints :created [{:creationDate "12/16/2015"}] :blueprintsJob3)
+           (e->in :blueprints :created [{:creationDate "12/16/2015"}] :blueprintsJob3)
            (v :appStephen2)]
           [(v :rexsterJob1)
            (v :rexster)
-           (e<- :rexster :created [{:creationDate "12/18/2015"}] :rexsterJob1)
+           (e->in :rexster :created [{:creationDate "12/18/2015"}] :rexsterJob1)
            (v :appStephen1)]]
          (query (get-vertex job-graph :stephen))))
 

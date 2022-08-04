@@ -1,6 +1,6 @@
 (ns fermor.loom-test
   (:require [clojure.test :refer [deftest testing is are]]
-            [fermor.core :refer [graph linear forked add-edges add-vertices v e-> e<-
+            [fermor.core :refer [graph linear forked add-edges add-vertices v e-> e->in
                                  undirected-edge]]
             [fermor.loom-graph :refer [as-loom-graph]]
             [loom.graph :as loom]

@@ -1,4 +1,4 @@
-(ns fermor.traverse-test
+(ns fermor.core-test
   (:require [clojure.test :as t :refer [deftest testing is]]
             [fermor.core :as g :refer :all :exclude [is]]
             [fermor.descend :refer [*no-result-interval* *cut-no-results* *no-results* cut-no-results value-for-no-results
@@ -11,8 +11,8 @@
               (add-edges :nope [[:d :b]])
               (add-vertices [[:a {:info "ok!"}]])
               forked)]
-    (is (= [(e<- :a :loom [4] :b)] [(e-> :a :loom [4] :b)]))
-    (is (= [(e-> :a :loom [4] :b)] [(e<- :a :loom [4] :b)]))))
+    (is (= [(e->in :a :loom [4] :b)] [(e-> :a :loom [4] :b)]))
+    (is (= [(e-> :a :loom [4] :b)] [(e->in :a :loom [4] :b)]))))
 
 
 (deftest extrude-basic-descend-calls

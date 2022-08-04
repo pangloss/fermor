@@ -32,12 +32,12 @@
              (fermor.graph linear forked dag-edge digraph-edge undirected-edge build-graph
                            vertices-with-edge
                            ;; read printed graph elements
-                           v e-> e<-)
+                           v e-> e->in)
              ;; Path
              (fermor.path with-path path? path subpath no-path no-path! cyclic-path?
                path-vertices path-edges)
              ;; Kind Graph
-             (fermor.kind-graph V E-> E<-))
+             (fermor.kind-graph V E-> E->in))
 
 ;; Provide aliases of element-id since I always forget it's not vertex-id, etc.
 (import-def fermor.protocols/element-id vertex-id)

@@ -644,7 +644,7 @@
       (.write w ")"))))
 
 (defmethod print-method E [^E e ^java.io.Writer w]
-  (print-edge "(e-> " "(e<- " e w))
+  (print-edge "(e-> " "(e->in " e w))
 
 (defmethod simple-dispatch E [o]
   (print-method o *out*))
@@ -681,7 +681,7 @@
   ([out-id label [document] in-id]
    (->E label (v out-id) (v in-id) (Optional/ofNullable document) true nil)))
 
-(defn e<-
+(defn e->in
   "The printed representation of an edge to the vertex with out-id from the
   vertex in-id. If you handle the :default-graph condition this will point to
   the correct edge for that graph, but if not, it will produce an edge object
