@@ -4,8 +4,8 @@
            generateme/fastmath          {:mvn/version "2.1.8" :exclusions [com.github.haifengl/smile-mkl]}
            io.lacuna/bifurcan           {:mvn/version "0.2.0-alpha6"}
            org.flatland/ordered         {:mvn/version "1.15.10"}
-           com.xn--lgc/pure-conditioning {:git/url "https://github.com/pangloss/pure-conditioning"
-                                          :sha "f605800bcbdf80a408c60d8e60bb6cd8222f17c6"}}
+           horse.no/pure-conditioning {:git/url "https://github.com/pangloss/pure-conditioning"
+                                       :sha "ff5ffe10ab1cb7f757d8dfdf6953cbc817748d5b"}}
  :aliases {:test     {:extra-paths ["test"]
                       :jvm-opts ["-XX:-OmitStackTraceInFastThrow"]
                       :extra-deps  {aysylu/loom {:mvn/version "1.0.2"}}}}}
