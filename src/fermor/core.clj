@@ -1,6 +1,6 @@
 (ns fermor.core
   (:require [pure-conditioning :refer [condition manage lazy-conditions error default]]
-            [potemkin :refer [import-vars]]
+            [potemkin :refer [import-vars import-def]]
             [flatland.ordered.set :refer [ordered-set]]
             [fermor.protocols :as proto :refer [Wrappable -out-edges -in-edges
                                                 traversed-forward -label -unwrap
@@ -32,12 +32,16 @@
              (fermor.graph linear forked dag-edge digraph-edge undirected-edge build-graph
                            vertices-with-edge
                            ;; read printed graph elements
-                           v e-> e<-)
+                           v e-> e->in)
              ;; Path
-             (fermor.path with-path path? path no-path no-path! cyclic-path?)
+             (fermor.path with-path path? path subpath no-path no-path! cyclic-path?
+               path-vertices path-edges)
              ;; Kind Graph
-             (fermor.kind-graph V E-> E<-))
+             (fermor.kind-graph V E-> E->in))
 
+;; Provide aliases of element-id since I always forget it's not vertex-id, etc.
+(import-def fermor.protocols/element-id vertex-id)
+(import-def fermor.protocols/element-id edge-id)
 
 (defn graph
   "Return the graph associated with the given element. If x is a graph, return
@@ -68,6 +72,13 @@
   "Replace the document for a given element or vertex id."
   [graph element-or-id document]
   (set-documents graph [[element-or-id document]]))
+
+(defn update-document
+  "Update the document for a given element."
+  ([graph element f]
+   (set-document graph element (f (get-document element))))
+  ([graph element f arg & args]
+   (set-document graph element (apply f (get-document element) arg args))))
 
 (defn ensure-seq
   "Returns either nil or something sequential."
@@ -212,11 +223,11 @@
      (cond
        (vertex? r) [(f (-out-edges r labels))]
        (nil? r) nil
-       :else (fast-traversal f -out-edges-prepared labels r)))
+       :else (fast-traversal f -out-edges-prepared labels r))
      (cond
        (vertex? r) [(f (-out-edges r))]
        (nil? r) nil
-       :else (map (comp f -out-edges) r))))
+       :else (map (comp f -out-edges) r)))))
 
 (defn out-e
   "Returns a lazy seq of edges.
@@ -680,10 +691,10 @@
     (def cut                [false    false    false     false])
 
     The control signal is a vector of 4 booleans:
-       0) emit: control whether the current element or path is emitted into the result setBit
-       1) children: control whether to descend to the current element's children
-       3) siblings: control whether to continue to traverse to the current element's siblings
-       4) reset-path: if true, the path vector will be reset to [], meaning that any future emitted or control path will not have previous history in it.
+       0. emit: control whether the current element or path is emitted into the result setBit
+       1. children: control whether to descend to the current element's children
+       2. siblings: control whether to continue to traverse to the current element's siblings
+       3. reset-path: if true, the path vector will be reset to [], meaning that any future emitted or control path will not have previous history in it.
 
    Hidden cycle protection:
 
@@ -900,7 +911,7 @@
 
 (defn with
   "Filters the route for elements where the result of calling the function f
-   (fn [v]) are equal to v. If v is a set, then check that the result of
+   (fn [e]) are equal to v. If v is a set, then check that the result of
    calling f is in the set."
   [f v r]
   (if (set? v)
@@ -996,8 +1007,8 @@
      (step r))))
 
 (defn no-cycles!
-  "Like prevent-cycles, but raise an :on-cycle condition (which by default
-  raises an ex-info) if a cycle is encountered.
+  "Like prevent-cycles, but raise an :on-cycle condition. The condition will by default
+  raise an ex-info.
 
   Return false from :on-cycle to break out of the cycle, return true to continue
   cycling. If you don't handle the :on-cycle condition, an exception will be
@@ -1222,3 +1233,22 @@
                                             (both-v edges)))))
                   (build-graph))
        forked))
+
+
+(defn degree
+  ([v]
+   (count (both-e [v])))
+  ([v labels]
+   (count (both-e labels [v]))))
+
+(defn in-degree
+  ([v]
+   (count (in-edges v)))
+  ([v labels]
+   (count (in-edges v labels))))
+
+(defn out-degree
+  ([v]
+   (count (out-edges v)))
+  ([v labels]
+   (count (out-edges v labels))))
