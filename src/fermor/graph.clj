@@ -3,7 +3,7 @@
   (:require [fermor.protocols :refer :all]
             [pure-conditioning :refer [condition error default optional]]
             [clojure.pprint :refer [simple-dispatch]])
-  (:import (io.lacuna.bifurcan DirectedGraph DirectedAcyclicGraph IGraph Graphs ISet IMap Map Maps$Entry)
+  (:import (io.lacuna.bifurcan DirectedGraph DirectedAcyclicGraph IGraph IMap Map)
            (java.util.function BiFunction)
            (java.util Optional)
            (clojure.lang IMeta)))
