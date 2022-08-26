@@ -1,7 +1,8 @@
 {:paths   ["src"]
  :deps    {org.clojure/clojure          {:mvn/version "1.11.1"}
            potemkin/potemkin            {:mvn/version "0.4.5"}
-           generateme/fastmath          {:mvn/version "2.1.8" :exclusions [com.github.haifengl/smile-mkl]}
+           generateme/fastmath          {:mvn/version "2.1.8" :exclusions [com.github.haifengl/smile-mkl
+                                                                           org.slf4j/slf4j-api]}
            io.lacuna/bifurcan           {:mvn/version "0.2.0-alpha6"}
            org.flatland/ordered         {:mvn/version "1.15.10"}
            horse.no/pure-conditioning {:git/url "https://github.com/pangloss/pure-conditioning"
