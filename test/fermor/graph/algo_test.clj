@@ -26,20 +26,20 @@
         (reverse-postwalk (g/get-vertex simple-graph 'A) [:to] g/element-id))))
 
 (deftest test-postwalk-state
-  (is (= '[[D B E C T A] ["D" "B" "E" "C" "T" "A"]]
+  (is (= '["D" "B" "E" "C" "T" "A"]
         (postwalk-state (g/get-vertex simple-graph 'A) [] [:to]
           (fn [v state] (let [id (g/element-id v)]
-                         [id (conj state (str id))]))))))
+                         (conj state (str id))))))))
 
 (deftest test-reverse-postwalk
   (is (= '[A T C E B D]
         (reverse-postwalk (g/get-vertex simple-graph 'A) [:to] g/element-id))))
 
 (deftest test-reverse-postwalk-state
-  (is (= '[[A T C E B D] ["A" "T" "C" "E" "B" "D"]]
+  (is (= ["A" "T" "C" "E" "B" "D"]
         (reverse-postwalk-state (g/get-vertex simple-graph 'A) [] [:to]
           (fn [v state] (let [id (g/element-id v)]
-                         [id (conj state (str id))]))))))
+                         (conj state (str id))))))))
 
 (def cyclic-graph
   (g/forked
@@ -52,6 +52,7 @@
         [T B]
         [B D]
         [C E]
+        [E D]
         [E M]
         [M C]
         [D G]
@@ -66,13 +67,25 @@
         (reverse-postwalk (g/get-vertex cyclic-graph 'X) :to g/element-id))))
 
 (deftest test-postwalk-state-cyclic
-  (is (= '[[G D B M E C T X] ["G" "D" "B" "M" "E" "C" "T" "X"]]
+  (is (= ["G" "D" "B" "M" "E" "C" "T" "X"]
         (postwalk-state (g/get-vertex cyclic-graph 'X) [] [:to]
           (fn [v state] (let [id (g/element-id v)]
-                         [id (conj state (str id))]))))))
+                         (conj state (str id))))))))
 
 (deftest test-reverse-postwalk-state-cyclic
-  (is (= '[[X T C E M B D G] ["X" "T" "C" "E" "M" "B" "D" "G"]]
+  (is (= ["X" "T" "C" "E" "M" "B" "D" "G"]
         (reverse-postwalk-state (g/get-vertex cyclic-graph 'X) [] [:to]
           (fn [v state] (let [id (g/element-id v)]
-                         [id (conj state (str id))]))))))
+                         (conj state (str id))))))))
+
+
+(deftest dominance
+  (is (= {(g/v 'X) (g/v 'X)
+          (g/v 'T) (g/v 'X)
+          (g/v 'C) (g/v 'X)
+          (g/v 'E) (g/v 'C)
+          (g/v 'M) (g/v 'E)
+          (g/v 'B) (g/v 'X)
+          (g/v 'D) (g/v 'X)
+          (g/v 'G) (g/v 'D)}
+        (dominators (g/get-vertex cyclic-graph 'X) [:to]))))
