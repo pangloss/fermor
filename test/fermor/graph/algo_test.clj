@@ -25,21 +25,20 @@
   (is (= '[A T C E B D]
         (reverse-postwalk (g/get-vertex simple-graph 'A) [:to] g/element-id))))
 
-(deftest test-postwalk-state
+(deftest test-postwalk-reduce
   (is (= '["D" "B" "E" "C" "T" "A"]
-        (postwalk-state (g/get-vertex simple-graph 'A) [] [:to]
-          (fn [v state] (let [id (g/element-id v)]
-                         (conj state (str id))))))))
+        (postwalk-reduce (g/get-vertex simple-graph 'A) [] [:to]
+          (fn [state v]
+            (conj state (str (g/element-id v))))))))
 
 (deftest test-reverse-postwalk
   (is (= '[A T C E B D]
         (reverse-postwalk (g/get-vertex simple-graph 'A) [:to] g/element-id))))
 
-(deftest test-reverse-postwalk-state
+(deftest test-reverse-postwalk-reduce
   (is (= ["A" "T" "C" "E" "B" "D"]
-        (reverse-postwalk-state (g/get-vertex simple-graph 'A) [] [:to]
-          (fn [v state] (let [id (g/element-id v)]
-                         (conj state (str id))))))))
+        (reverse-postwalk-reduce (g/get-vertex simple-graph 'A) [] [:to]
+          (fn [state v] (conj state (str (g/element-id v))))))))
 
 (def cyclic-graph
   (g/forked
@@ -66,17 +65,15 @@
   (is (= '[X T C E M B D G]
         (reverse-postwalk (g/get-vertex cyclic-graph 'X) :to g/element-id))))
 
-(deftest test-postwalk-state-cyclic
+(deftest test-postwalk-reduce-cyclic
   (is (= ["G" "D" "B" "M" "E" "C" "T" "X"]
-        (postwalk-state (g/get-vertex cyclic-graph 'X) [] [:to]
-          (fn [v state] (let [id (g/element-id v)]
-                         (conj state (str id))))))))
+        (postwalk-reduce (g/get-vertex cyclic-graph 'X) [] [:to]
+          (fn [state v] (conj state (str (g/element-id v))))))))
 
-(deftest test-reverse-postwalk-state-cyclic
+(deftest test-reverse-postwalk-reduce-cyclic
   (is (= ["X" "T" "C" "E" "M" "B" "D" "G"]
-        (reverse-postwalk-state (g/get-vertex cyclic-graph 'X) [] [:to]
-          (fn [v state] (let [id (g/element-id v)]
-                         (conj state (str id))))))))
+        (reverse-postwalk-reduce (g/get-vertex cyclic-graph 'X) [] [:to]
+          (fn [state v] (conj state (str (g/element-id v))))))))
 
 
 (deftest dominance
@@ -89,3 +86,10 @@
           (g/v 'D) (g/v 'X)
           (g/v 'G) (g/v 'D)}
         (dominators (g/get-vertex cyclic-graph 'X) [:to]))))
+
+
+
+(deftest scc
+  (is (= #{#{(g/v 'M) (g/v 'C) (g/v 'E)}
+           #{(g/v 'D) (g/v 'G)}}
+        (strongly-connected-components cyclic-graph :to false))))

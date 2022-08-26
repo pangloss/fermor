@@ -115,33 +115,37 @@
 (defn reverse-postwalk
   "This is also called RPO. The point of it is to guarantee that elements are visited before any of their descendents.
 
-  See also [[postwalk]] and [[reverse-postwalk-state]]."
+  See also [[postwalk]] and [[reverse-postwalk-reduce]]."
   [entry-node labels f]
   (let [vs (postwalk entry-node labels identity)]
     (map f (reverse vs))))
 
-(defn postwalk-state [entry-node state labels f]
+(defn postwalk-reduce [entry-node state labels f]
   (let [seen (volatile! #{})]
-    (letfn [(descend [v state]
+    (letfn [(descend [state v]
               (vswap! seen conj v)
               (loop [[child & children] (remove @seen (g/out labels v))
                      state state]
                 (if child
-                  (let [state (descend child state)]
+                  (let [state (descend state child)]
                     (recur children state))
-                  (let [state (f v state)]
-                    state))))]
-      (descend entry-node state))))
+                  (f state v))))]
+      (descend state entry-node))))
 
-(defn reverse-postwalk-state [entry-node state labels f]
+(defn reverse-postwalk-reduce
+  "Reduce over the graph in [[reverse-postwalk]] order.
+
+  Each element calls (f accumulator v). The return value of the callback is the
+  accumulator for the next element."
+  [entry-node state labels f]
   (let [vs (postwalk entry-node labels identity)]
-    (reduce (fn [state v]
-              (let [state (f v state)]
-                state))
-      state
-      (reverse vs))))
+    (reduce f state (reverse vs))))
 
-(defn rpo-numbering [entry-node labels]
+(defn rpo-numbering
+  "Return a map from node to its order in RPO traversal.
+
+  Since RPO is a topological sort, this can be used to tsort nodes in a subgraph."
+  [entry-node labels]
   (zipmap (reverse-postwalk entry-node labels identity)
     (range)))
 
@@ -162,8 +166,8 @@
                         :else
                         (recur (doms finger1) finger2)))))]
       (loop [doms {entry-node entry-node}]
-        (let [doms' (reverse-postwalk-state entry-node doms labels
-                      (fn [v doms]
+        (let [doms' (reverse-postwalk-reduce entry-node doms labels
+                      (fn [doms v]
                         (if (= entry-node v)
                           doms
                           (let [new-idom
