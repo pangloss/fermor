@@ -141,43 +141,72 @@
   (let [vs (postwalk entry-node labels identity)]
     (reduce f state (reverse vs))))
 
-(defn rpo-numbering
+(defn post-order-numbering
   "Return a map from node to its order in RPO traversal.
 
   Since RPO is a topological sort, this can be used to tsort nodes in a subgraph."
   [entry-node labels]
-  (zipmap (reverse-postwalk entry-node labels identity)
+  (zipmap (postwalk entry-node labels identity)
     (range)))
 
-(defn dominators
+(defn- idom-intersect [blocknum]
+  (fn intersect [doms b1 b2]
+    (loop [finger1 b1 finger2 b2]
+      (when (and finger1 finger2)
+        (let [n1 (blocknum finger1)
+              n2 (blocknum finger2)]
+          (cond (= n1 n2)
+                finger1
+                (< n1 n2)
+                (recur (doms finger1) finger2)
+                :else
+                (recur finger1 (doms finger2))))))))
+
+(defn immediate-dominators
   "Return a map of dominators.
 
   Based upon \"A Simple, Fast Dominance Agorithm\" by Cooper, Harvey and Kennedy"
   [entry-node labels]
-  (let [blocknum (rpo-numbering entry-node labels)]
-    (letfn [(intersect [doms b1 b2]
-              (loop [finger1 b1 finger2 b2]
-                (let [n1 (blocknum finger1 -1)
-                      n2 (blocknum finger2 -1)]
-                  (cond (= n1 n2)
-                        finger1
-                        (< n1 n2)
-                        (recur finger1 (doms finger2))
-                        :else
-                        (recur (doms finger1) finger2)))))]
-      (loop [doms {entry-node entry-node}]
-        (let [doms' (reverse-postwalk-reduce entry-node doms labels
-                      (fn [doms v]
-                        (if (= entry-node v)
-                          doms
-                          (let [new-idom
-                                (reduce (fn [new-idom pred]
-                                          (if (doms pred)
-                                            (intersect doms pred new-idom)
-                                            new-idom))
-                                  ;; first element is the initial accumulator
-                                  (g/in labels v))]
-                            (assoc doms v new-idom)))))]
-          (if (= doms doms')
-            doms
-            (recur doms')))))))
+  (let [intersect (idom-intersect (post-order-numbering entry-node labels))]
+    (loop [doms {entry-node entry-node}]
+      (prn doms)
+      (let [doms' (reverse-postwalk-reduce entry-node doms labels
+                    (fn [doms v]
+                      (if (= entry-node v)
+                        doms
+                        (let [preds (g/in labels v)
+                              new-idom (first (filter doms preds))
+                              new-idom
+                              (reduce (fn [new-idom pred]
+                                        (if (doms pred)
+                                          (intersect doms pred new-idom)
+                                          new-idom))
+                                new-idom
+                                (remove #{new-idom} preds))]
+                          (assoc doms v new-idom)))))]
+        (if (= doms doms')
+          doms
+          (recur doms'))))))
+
+
+(defn dominance-frontiers
+  "Calculate dominance frontiers of the subgraph originating at entry-node.
+
+  This is a bonus algo on page 9 of the paper I got the [[immediate-dominators]] algo from."
+  [entry-node labels]
+  (let [doms (immediate-dominators entry-node labels)
+        frontiers (zipmap (keys doms) (repeat #{}))]
+    (reduce (fn [frontiers b]
+              (let [preds (g/in labels b)]
+                (if (next preds) ;; |preds| >= 2
+                  (reduce (fn [frontiers p]
+                            (loop [runner p
+                                   frontiers frontiers]
+                              (if (= runner (doms b))
+                                frontiers
+                                (recur (doms runner) (update frontiers runner conj b)))))
+                    frontiers
+                    preds)
+                  frontiers)))
+      frontiers
+      (keys doms))))
