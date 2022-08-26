@@ -213,24 +213,6 @@
       frontiers
       (keys doms))))
 
-#_
-(defn pre-interval [selected h labels]
-  (let [remsel (remove selected)]
-    (loop [A #{h}]
-      (if-let [m (first
-                   (into []
-                     (comp
-                       remsel
-                       (remove A)
-                       (filter (fn [m] (every? A (g/in labels m))))
-                       (take 1))
-                     ;; This could be optimized with these elements on a
-                     ;; worklist and just add elements to it as they are added
-                     ;; to A.
-                     (g/out labels (seq A))))]
-        (recur (conj A m))
-        A))))
-
 (defn pre-interval [selected h labels]
   (loop [A #{h}
          xform  nil
