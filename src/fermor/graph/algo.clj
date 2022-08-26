@@ -1,6 +1,7 @@
 (ns fermor.graph.algo
   (:require [fermor.protocols :refer [get-vertex element-id vertex?]]
-            [fermor.graph :refer [edge-graph]])
+            [fermor.graph :refer [edge-graph]]
+            [fermor.core :as g])
   (:import (io.lacuna.bifurcan Graphs LinearList)
            (java.util.function Predicate ToDoubleFunction)
            (java.util Optional)))
@@ -97,3 +98,43 @@
     (into #{}
       (map #(get-vertex graph %))
       (Graphs/articulationPoints g))))
+
+(defn postwalk
+  [v labels f]
+  (let [seen (volatile! #{})]
+    (letfn [(descend [v]
+              (vswap! seen conj v)
+              (concat
+                (mapcat descend (remove @seen (g/out labels v)))
+                [(f v)]))]
+      (descend v))))
+
+(defn reverse-postwalk
+  "This is also called RPO. The point of it is to guarantee that elements are visited before any of their descendents.
+
+  See also [[postwalk]] and [[reverse-postwalk-state]]."
+  [v labels f]
+  (let [vs (postwalk v labels identity)]
+    (map f (reverse vs))))
+
+(defn postwalk-state [v state labels f]
+  (let [seen (volatile! #{})]
+    (letfn [(descend [v state]
+              (vswap! seen conj v)
+              (loop [[child & children] (remove @seen (g/out labels v))
+                     state state
+                     result []]
+                (if child
+                  (let [[child-result state] (descend child state)]
+                    (recur children state (into result child-result)))
+                  (let [[v-result state] (f v state)]
+                    [(conj result v-result) state]))))]
+      (descend v state))))
+
+(defn reverse-postwalk-state [v state labels f]
+  (let [vs (postwalk v labels identity)]
+    (reduce (fn [[results state] v]
+              (let [[v-result state] (f v state)]
+                [(conj results v-result) state]))
+      [[] state]
+      (reverse vs))))
