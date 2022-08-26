@@ -6,6 +6,8 @@
            (java.util.function Predicate ToDoubleFunction)
            (java.util Optional)))
 
+;; TODO: fn to convert directed labels to undirected.
+
 (defn- ^Predicate as-predicate [f]
   (reify Predicate
     (test [this arg] (f arg))))
@@ -210,3 +212,54 @@
                   frontiers)))
       frontiers
       (keys doms))))
+
+#_
+(defn pre-interval [selected h labels]
+  (let [remsel (remove selected)]
+    (loop [A #{h}]
+      (if-let [m (first
+                   (into []
+                     (comp
+                       remsel
+                       (remove A)
+                       (filter (fn [m] (every? A (g/in labels m))))
+                       (take 1))
+                     ;; This could be optimized with these elements on a
+                     ;; worklist and just add elements to it as they are added
+                     ;; to A.
+                     (g/out labels (seq A))))]
+        (recur (conj A m))
+        A))))
+
+(defn pre-interval [selected h labels]
+  (loop [A #{h}
+         xform  nil
+         worklist [h]]
+    (if xform
+      (if-let [node (first worklist)]
+        (if-let [m (first (into [] xform (g/out labels node)))]
+          (recur (conj A m) nil (conj worklist m))
+          (recur A xform (subvec worklist 1)))
+        A)
+      (recur A
+        (comp
+          (remove selected)
+          (remove A)
+          (filter (fn [m] (every? A (g/in labels m))))
+          (take 1))
+        worklist))))
+
+(defn intervals [entry-node labels]
+  (loop [workset #{entry-node}
+         selected #{}
+         intervals []]
+    (if-let [h (first workset)]
+      (let [interval (pre-interval selected h labels)
+            selected (into selected interval)]
+        (recur
+          (into (disj workset h)
+            (remove selected)
+            (g/out labels (seq selected)))
+          selected
+          (conj intervals interval)))
+      intervals)))
