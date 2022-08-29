@@ -240,3 +240,29 @@
           #{(g/v 'K) (g/v 'J)}]
         (intervals (g/get-vertex flow-graph2 'S) [:to]))
     "Intervals on p45 of GRAPHS"))
+
+(def loops-graph
+  (g/forked (g/add-edges (g/graph) :to
+              [[1 2] [1 3] [2 3] [3 4]
+               [4 5] [4 6] [5 7] [6 7]
+               [4 3] [7 4] [7 8] [8 3]
+               [8 9] [9 1] [8 10] [10 7]])))
+
+(deftest loops-test
+  (is (= {(g/v 7) (g/v 4),
+          (g/v 1) (g/v 1),
+          (g/v 4) (g/v 3),
+          (g/v 6) (g/v 4),
+          (g/v 3) (g/v 1),
+          (g/v 2) (g/v 1),
+          (g/v 9) (g/v 8),
+          (g/v 5) (g/v 4),
+          (g/v 10) (g/v 8),
+          (g/v 8) (g/v 7)}
+        (immediate-dominators (g/get-vertex loops-graph 1) :to)))
+
+  (is (= (range 10)
+        (->> (reverse-post-order-numbering (g/get-vertex loops-graph 1) :to)
+          vals
+          sort))
+    "this had a bug where a node appeared twice in the traversal, throwing the numbering out."))

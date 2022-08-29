@@ -116,10 +116,11 @@
   [entry-node labels f]
   (let [seen (volatile! #{})]
     (letfn [(descend [v]
-              (vswap! seen conj v)
-              (concat
-                (mapcat descend (remove @seen (g/out labels v)))
-                [(f v)]))]
+              (when-not (@seen v)
+                (vswap! seen conj v)
+                (concat
+                  (mapcat descend (g/out labels v))
+                  [(f v)])))]
       (descend entry-node))))
 
 (defn reverse-postwalk
@@ -140,11 +141,13 @@
   (let [seen (volatile! #{})]
     (letfn [(descend [state v]
               (vswap! seen conj v)
-              (loop [[child & children] (remove @seen (g/out labels v))
+              (loop [[child & children] (g/out labels v)
                      state state]
                 (if child
-                  (let [state (descend state child)]
-                    (recur children state))
+                  (if (@seen child)
+                    (recur children state)
+                    (let [state (descend state child)]
+                      (recur children state)))
                   (f state v))))]
       (descend state entry-node))))
 
