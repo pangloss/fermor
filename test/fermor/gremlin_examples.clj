@@ -159,15 +159,12 @@
       (forked)))
 
 (deftest betweeness-centrality
-  ;; This doesn't get the same number as their example, but correctly models
-  ;; their description. The gremlin code is too confusing to be confident in
-  ;; understanding.
-  (is (= {(v :a) 8
-          (v :b) 14
-          (v :c) 9
-          (v :d) 9
-          (v :e) 14
-          (v :f) 8}
+  (is (= {(v :a) (inc 14)
+          (v :b) (inc 28)
+          (v :c) (inc 20)
+          (v :d) (inc 20)
+          (v :e) (inc 28)
+          (v :f) (inc 14)}
          (->> (all-vertices betweeness-graph)
               with-paths
               (all both)
