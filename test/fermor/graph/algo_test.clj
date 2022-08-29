@@ -26,7 +26,7 @@
 
 (deftest test-postwalk-reduce
   (is (= '["D" "B" "E" "C" "T" "A"]
-        (postwalk-reduce (g/get-vertex simple-graph 'A) [] [:to]
+        (postwalk-reduce (g/get-vertex simple-graph 'A) [:to] []
           (fn [state v]
             (conj state (str (g/element-id v))))))))
 
@@ -36,7 +36,7 @@
 
 (deftest test-reverse-postwalk-reduce
   (is (= ["A" "T" "C" "E" "B" "D"]
-        (reverse-postwalk-reduce (g/get-vertex simple-graph 'A) [] [:to]
+        (reverse-postwalk-reduce (g/get-vertex simple-graph 'A) [:to] []
           (fn [state v] (conj state (str (g/element-id v))))))))
 
 (def cyclic-graph
@@ -57,12 +57,12 @@
 
 (deftest test-postwalk-reduce-cyclic
   (is (= ["G" "D" "B" "M" "E" "C" "T" "X"]
-        (postwalk-reduce (g/get-vertex cyclic-graph 'X) [] [:to]
+        (postwalk-reduce (g/get-vertex cyclic-graph 'X) [:to] []
           (fn [state v] (conj state (str (g/element-id v))))))))
 
 (deftest test-reverse-postwalk-reduce-cyclic
   (is (= ["X" "T" "C" "E" "M" "B" "D" "G"]
-        (reverse-postwalk-reduce (g/get-vertex cyclic-graph 'X) [] [:to]
+        (reverse-postwalk-reduce (g/get-vertex cyclic-graph 'X) [:to] []
           (fn [state v] (conj state (str (g/element-id v))))))))
 
 
@@ -123,7 +123,7 @@
         (reverse-postwalk (g/get-vertex flow-graph 'S) :to g/element-id)))
 
   (is (= (mapv str (reverse-postwalk (g/get-vertex flow-graph 'S) :to g/element-id))
-        (reverse-postwalk-reduce (g/get-vertex flow-graph 'S) [] [:to]
+        (reverse-postwalk-reduce (g/get-vertex flow-graph 'S) [:to] []
           (fn [state v] (conj state (str (g/element-id v)))))))
 
   (is (= {(g/v 'H) (g/v 'E),

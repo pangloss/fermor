@@ -137,7 +137,7 @@
 
   Each element calls (f accumulator v). The return value of the callback is the
   accumulator for the next element."
-  [entry-node state labels f]
+  [entry-node labels state f]
   (let [seen (volatile! #{})]
     (letfn [(descend [state v]
               (vswap! seen conj v)
@@ -156,7 +156,7 @@
 
   Each element calls (f accumulator v). The return value of the callback is the
   accumulator for the next element."
-  [entry-node state labels f]
+  [entry-node labels state f]
   (let [vs (postwalk entry-node labels identity)]
     (reduce f state (reverse vs))))
 
@@ -199,7 +199,7 @@
   (let [intersect (idom-intersect (post-order-numbering entry-node labels))]
     (loop [doms {entry-node entry-node}]
       (prn doms)
-      (let [doms' (reverse-postwalk-reduce entry-node doms labels
+      (let [doms' (reverse-postwalk-reduce entry-node labels doms
                     (fn [doms v]
                       (if (= entry-node v)
                         doms
