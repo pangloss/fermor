@@ -151,6 +151,25 @@
                   (f state v))))]
       (descend state entry-node))))
 
+(defn prewalk-reduce
+  "Reduce over the graph in [[prewalk]] order.
+
+  Each element calls (f accumulator v). The return value of the callback is the
+  accumulator for the next element."
+  [entry-node labels state f]
+  (let [seen (volatile! #{})]
+    (letfn [(descend [state v]
+              (vswap! seen conj v)
+              (loop [[child & children] (g/out labels v)
+                     state (f state v)]
+                (if child
+                  (if (@seen child)
+                    (recur children state)
+                    (let [state (descend state child)]
+                      (recur children state)))
+                  state)))]
+      (descend state entry-node))))
+
 (defn reverse-postwalk-reduce
   "Reduce over the graph in [[reverse-postwalk]] order.
 
@@ -274,3 +293,30 @@
           selected
           (conj intervals interval)))
       intervals)))
+
+
+(defn find-loops [entry-node labels]
+  (let [n (reverse-post-order-numbering entry-node labels)]
+    (:loops
+     (prewalk-reduce entry-node labels {:active-loops {}
+                                        :nesting []
+                                        :loops {}}
+       (fn [acc head]
+         (let [ending-loop (get-in acc [:active-loops head])
+               acc (if ending-loop
+                     (-> acc
+                       (update :active-loops dissoc head)
+                       (update :nesting #(into [] (remove #{ending-loop}) %)))
+                     acc)]
+           (->> (g/in labels head)
+             (filter (fn [tail] (< (n head) (n tail))))
+             (sort-by (fn [tail] (- (n tail))))
+             (reduce (fn [acc tail]
+                       (let [nesting (vec (vals (:active-loops acc)))]
+                         (-> acc
+                           (update :loops assoc [head tail] {:loop-num (count (:loops acc))
+                                                             :parent (last (:nesting acc))
+                                                             :depth (count (:nesting acc))})
+                           (update :active-loops assoc tail [head tail])
+                           (update :nesting conj [head tail]))))
+               acc))))))))
