@@ -1,5 +1,5 @@
 (ns fermor.graph
-  (:refer-clojure :exclude [filter keep])
+  (:refer-clojure :exclude [filter keep merge])
   (:require [fermor.protocols :refer :all]
             [pure-conditioning :refer [condition error default optional]]
             [clojure.pprint :refer [simple-dispatch]])
@@ -69,6 +69,10 @@
   (_getDocument ^java.util.Optional [])
   (_setDocument ^IDocumentCache [^java.util.Optional p]))
 
+(defn remove-all-edges
+  "Remove all edges with the given label from the graph."
+  [^IEdgeGraphs g label]
+  (._removeEdgeGraph g label))
 
 (defn- -remove-documents [g elements]
   (let [{:keys [vertices edges]}
@@ -210,6 +214,47 @@
    (->LinearGraph (.linear (Map.)) (.linear (Map.)) settings nil))
   ([settings metadata]
    (->LinearGraph (.linear (Map.)) (.linear (Map.)) settings metadata)))
+
+(defn IGraph->graph [^IGraph g label]
+  (._addEdgeGraph (build-graph) label g))
+
+(defn- binary-op [f]
+  (if (instance? java.util.function.BinaryOperator f)
+    f
+    (reify java.util.function.BinaryOperator
+      (apply [this a b] (f a b)))))
+
+(def ^:private standard-merge-behavior
+  (reify java.util.function.BinaryOperator
+    (apply [this a b] b)))
+
+(defn merge-with
+  "Merge graphs. When edges or documents conflict, resolve conflicts using
+  merge-edge or merge-doc. Those functions are called with the conflicting
+  elements in the same style as [[clojure.core/merge-with]].
+
+  Preserves the settings and metadata of the first graph."
+  ([merge-edge merge-doc g1]
+   g1)
+  ([merge-edge merge-doc ^LinearGraph g1 ^LinearGraph g2]
+   (let [edges (.merge (.edges g1) (.edges g2)
+                 (binary-op
+                   (fn [^IGraph eg1 ^IGraph eg2]
+                     (.merge eg1 eg2 (binary-op merge-edge)))))
+         docs (.merge (.documents g1) (.documents g2)
+                (binary-op merge-doc))]
+     (->LinearGraph edges docs (.settings g1) (.metadata g1))))
+  ([merge-edge merge-doc g1 g2 g3 & gs]
+   (reduce (partial merge-with merge-edge merge-doc) g1 (cons g2 (cons g3 gs)))))
+
+(defn merge
+  "Merge graphs. When edges or documents conflict, keep the later ones.
+  Preserves the settings and metadata of the first graph."
+  ([g1] g1)
+  ([g1 g2]
+   (merge-with standard-merge-behavior standard-merge-behavior g1 g2))
+  ([g1 g2 g3 & gs]
+   (reduce merge g1 (cons g2 (cons g3 gs)))))
 
 (defn add-value-semantics [graph]
   ;; Note: public DirectedAcyclicGraph(ToLongFunction<V> hashFn, BiPredicate<V, V> equalsFn) exists, too.
@@ -599,7 +644,9 @@
   "Return all vertices that have an edge with the given label."
   [graph label]
   (when-let [edge (edge-graph (-unwrap graph) label)]
-    (map #(->V graph % nil nil) (.vertices edge))))
+    (into #{}
+      (map #(->V graph % nil nil))
+      (.vertices edge))))
 
 (defn- --out-edges [^V v labels]
   (mapcat (fn [label]

@@ -1,10 +1,11 @@
 (ns fermor.graph.algo
   (:require [fermor.protocols :refer [get-vertex element-id vertex?]]
-            [fermor.graph :refer [edge-graph]]
+            [fermor.graph :as fg :refer [edge-graph]]
             [fermor.core :as g])
   (:import (io.lacuna.bifurcan Graphs LinearList)
            (java.util.function Predicate ToDoubleFunction)
-           (java.util Optional)))
+           (java.util Optional)
+           (fermor.graph IEdgeGraphs)))
 
 ;; TODO: fn to convert directed labels to undirected.
 
@@ -56,10 +57,17 @@
         (map #(get-vertex graph %))
         (.get result)))))
 
-(defn strongly-connected-subgraphs [graph label include-singletons?]
+(defn strongly-connected-subgraphs
+  "Calculates a set of subgraphs which are then added to the graph with "
+  [graph label include-singletons? result-labels]
   (let [g (edge-graph graph label)]
-    ;; TODO: generate labels for these and recombine them as a fermor graph.
-    (Graphs/stronglyConnectedSubgraphs g include-singletons?)))
+    (g/forked
+      (reduce (fn [g [label edge-graph]]
+                (fg/merge g (fg/IGraph->graph edge-graph label)))
+        (g/linear graph)
+        (map vector
+          result-labels
+          (Graphs/stronglyConnectedSubgraphs g include-singletons?))))))
 
 (defn cycles
   "Returns a list of all circular paths in the graph."
@@ -115,14 +123,20 @@
       (descend entry-node))))
 
 (defn reverse-postwalk
-  "This is also called RPO. The point of it is to guarantee that elements are visited before any of their descendents.
+  "This is also called RPO. The point of it is to guarantee that elements are
+  visited before any of their descendents.
 
   See also [[postwalk]] and [[reverse-postwalk-reduce]]."
   [entry-node labels f]
   (let [vs (postwalk entry-node labels identity)]
     (map f (reverse vs))))
 
-(defn postwalk-reduce [entry-node state labels f]
+(defn postwalk-reduce
+  "Reduce over the graph in [[postwalk]] order.
+
+  Each element calls (f accumulator v). The return value of the callback is the
+  accumulator for the next element."
+  [entry-node state labels f]
   (let [seen (volatile! #{})]
     (letfn [(descend [state v]
               (vswap! seen conj v)
@@ -143,10 +157,20 @@
   (let [vs (postwalk entry-node labels identity)]
     (reduce f state (reverse vs))))
 
-(defn post-order-numbering
+(defn reverse-post-order-numbering
   "Return a map from node to its order in RPO traversal.
 
-  Since RPO is a topological sort, this can be used to tsort nodes in a subgraph."
+  Since RPO is a topological sort, this can be used to tsort nodes in a subgraph.
+
+  See also [[reverse-postwalk]]"
+  [entry-node labels]
+  (zipmap (reverse-postwalk entry-node labels identity)
+    (range)))
+
+(defn post-order-numbering
+  "Return a map from node to its order in PO traversal.
+
+  See also [[postwalk]] in this namespace."
   [entry-node labels]
   (zipmap (postwalk entry-node labels identity)
     (range)))
@@ -165,7 +189,7 @@
                 (recur finger1 (doms finger2))))))))
 
 (defn immediate-dominators
-  "Return a map of dominators.
+  "Return a map of immediate dominators.
 
   Based upon \"A Simple, Fast Dominance Agorithm\" by Cooper, Harvey and Kennedy"
   [entry-node labels]
@@ -213,7 +237,7 @@
       frontiers
       (keys doms))))
 
-(defn pre-interval [selected h labels]
+(defn- pre-interval [selected h labels]
   (loop [A #{h}
          xform  nil
          worklist [h]]
@@ -231,7 +255,9 @@
           (take 1))
         worklist))))
 
-(defn intervals [entry-node labels]
+(defn intervals
+  "Return a list of intervals in the graph."
+  [entry-node labels]
   (loop [workset #{entry-node}
          selected #{}
          intervals []]

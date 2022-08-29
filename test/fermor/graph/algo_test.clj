@@ -46,6 +46,7 @@
       '[[X T] [X B] [X C] [T B] [B D] [C E]
         [E D] [E M] [M C] [D G] [G D]])))
 
+
 (deftest test-postwalk-cyclic
   (is (= '[G D B M E C T X]
         (postwalk (g/get-vertex cyclic-graph 'X) :to g/element-id))))
@@ -80,6 +81,20 @@
   (is (= #{#{(g/v 'M) (g/v 'C) (g/v 'E)}
            #{(g/v 'D) (g/v 'G)}}
         (strongly-connected-components cyclic-graph :to false))))
+
+(deftest scsg
+  (let [g (strongly-connected-subgraphs cyclic-graph :to false (range))]
+    (is (= #{(g/v 'M) (g/v 'C) (g/v 'E)}
+          (g/vertices-with-edge g 0)))
+
+    (is (= #{(g/v 'D) (g/v 'G)}
+          (g/vertices-with-edge g 1)))
+
+    (is (= 11
+          (->> g g/vertices (g/out-e [:to]) count)))
+
+    (is (= 5
+          (->> g g/vertices (g/out-e [0 1 2]) count)))))
 
 (deftest on-the-range
   ;; TODO: I am not totally confident that this is correct.
