@@ -142,6 +142,8 @@
 
 ;; Betweeness Centrality
 ;;
+;; via https://tinkerpop.apache.org/docs/current/recipes/#betweeness-centrality
+;;
 ;; Betweeness centrality is a measure of the number of times a vertex is found
 ;; between the shortest path of each vertex pair in a graph. Consider the
 ;; following graph for demonstration purposes:
