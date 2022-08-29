@@ -49,10 +49,10 @@
 
 (deftest simple-graph-loops
   (is (= {}
-        (find-loops (g/get-vertex simple-graph 'X) :to)))
+        (loop-tree (g/get-vertex simple-graph 'X) :to)))
   (is (= {[(v 'D) (v 'G)] {:loop-num 0, :parent nil, :depth 0},
           [(v 'C) (v 'M)] {:loop-num 1, :parent nil, :depth 0}}
-        (find-loops (g/get-vertex cyclic-graph 'X) :to))))
+        (loop-tree (g/get-vertex cyclic-graph 'X) :to))))
 
 (deftest test-postwalk-cyclic
   (is (= '[G D B M E C T X]
@@ -188,7 +188,7 @@
   (is (= {[(v 'S) (v 'K)] {:loop-num 0, :parent nil, :depth 0},
           [(v 'E) (v 'H)] {:loop-num 1, :parent [(v 'S) (v 'K)], :depth 1},
           [(v 'K) (v 'I)] {:loop-num 2, :parent nil, :depth 0}}
-        (find-loops (g/get-vertex flow-graph 'S) [:to]))))
+        (loop-tree (g/get-vertex flow-graph 'S) [:to]))))
 
 (def irreducible-graph
   ;; Example from the DOM paper
@@ -213,7 +213,7 @@
         (cycles irreducible-graph :to)))
 
   (is (= {[(v 2) (v 1)] {:loop-num 0, :parent nil, :depth 0}}
-        (find-loops (g/get-vertex irreducible-graph 5) [:to]))))
+        (loop-tree (g/get-vertex irreducible-graph 5) [:to]))))
 
 (def flow-graph2
   ;; page 41 of GRAPHS
@@ -271,7 +271,7 @@
           [(v 'J) (v 'K)] {:loop-num 7 :parent [(v 'L) (v 'M)] :depth 6}
           [(v 'O) (v 'P)] {:loop-num 8 :parent [(v 'F) (v 'I)] :depth 4}
           [(v 'P) (v 'Q)] {:loop-num 9 :parent [(v 'F) (v 'I)] :depth 4}}
-        (find-loops (g/get-vertex flow-graph2 'S) [:to]))))
+        (loop-tree (g/get-vertex flow-graph2 'S) [:to]))))
 
 (def loops-graph
   (g/forked (g/add-edges (g/graph) :to
@@ -299,22 +299,19 @@
           sort))
     "this had a bug where a node appeared twice in the traversal, throwing the numbering out.")
 
-  (is (= {[(v 1) (v 9)] {:loop-num 0, :parent nil, :depth 0, :nesting []},
+  (is (= {[(v 1) (v 9)] {:loop-num 0, :parent nil, :depth 0}
           [(v 3) (v 8)]
-          {:loop-num 1, :parent [(v 1) (v 9)], :depth 1, :nesting [[(v 1) (v 9)]]},
+          {:loop-num 1, :parent [(v 1) (v 9)], :depth 1}
           [(v 3) (v 4)]
           {:loop-num 2,
            :parent [(v 3) (v 8)],
-           :depth 2,
-           :nesting [[(v 1) (v 9)] [(v 3) (v 8)]]},
+           :depth 2,}
           [(v 4) (v 7)]
           {:loop-num 3,
            :parent [(v 3) (v 8)],
-           :depth 2,
-           :nesting [[(v 1) (v 9)] [(v 3) (v 8)]]},
+           :depth 2,}
           [(v 7) (v 10)]
           {:loop-num 4,
            :parent [(v 3) (v 8)],
-           :depth 2,
-           :nesting [[(v 1) (v 9)] [(v 3) (v 8)]]}}
-        (find-loops (g/get-vertex loops-graph 1) :to))))
+           :depth 2,}}
+        (loop-tree (g/get-vertex loops-graph 1) :to))))

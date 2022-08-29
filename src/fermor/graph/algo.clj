@@ -295,7 +295,7 @@
       intervals)))
 
 
-(defn find-loops [entry-node labels]
+(defn loop-tree [entry-node labels]
   (let [n (reverse-post-order-numbering entry-node labels)]
     (:loops
      (prewalk-reduce entry-node labels {:active-loops {}
