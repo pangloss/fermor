@@ -1,5 +1,5 @@
 (ns fermor.graph
-  (:refer-clojure :exclude [filter keep merge])
+  (:refer-clojure :exclude [filter keep merge merge-with])
   (:require [fermor.protocols :refer :all]
             [pure-conditioning :refer [condition error default optional]]
             [clojure.pprint :refer [simple-dispatch]])
