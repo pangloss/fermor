@@ -7,38 +7,41 @@
 
 (defrecord Lattice [label depths dual-depths top bottom up down])
 
-(defn max-path-length [rf v]
+(defn- max-path-length [rf v]
   (dec (apply max (map count (g/deepest-paths rf v)))))
 
 (defn lattice [graph label]
   (let [vs (g/vertices-with-edge graph label)
         tops (remove #(seq (g/in-edges % [label])) vs)
         bottoms (remove #(seq (g/out-edges % [label])) vs)]
-    (if (or (next tops) (next bottoms))
-      (throw (ex-info "Invalid lattice. Must have only one top and one bottom" {:tops tops :bottoms bottoms}))
-      (let [ups (mapv (partial max-path-length #(g/in label %)) vs)
-            downs (mapv (partial max-path-length #(g/out label %)) vs)
-            height (reduce max ups)
-            height (if (odd? height) (inc height) height) ;; make sure there is a center line
-            middle (/ height 2)
-            depths (reduce (fn [m [node top-dist bot-dist]]
-                             (assoc m (g/element-id node)
-                               (cond (= top-dist bot-dist) middle
-                                     (< bot-dist top-dist) bot-dist
-                                     :else (- height top-dist))))
-                     {}
-                     (map vector vs ups downs))
-            dual-depths (reduce-kv (fn [d node depth]
-                                     (assoc d node (- height depth)))
-                          {} depths)]
-        (->Lattice
-          label
-          depths
-          dual-depths
-          (first tops)
-          (first bottoms)
-          #(g/in [label] %)
-          #(g/out [label] %))))))
+    (if (seq vs)
+      (if (or (next tops) (next bottoms))
+        (throw (ex-info "Invalid lattice. Must have only one top and one bottom"
+                 {:graph graph :label label :tops tops :bottoms bottoms}))
+        (let [ups (mapv (partial max-path-length #(g/in label %)) vs)
+              downs (mapv (partial max-path-length #(g/out label %)) vs)
+              height (reduce max ups)
+              height (if (odd? height) (inc height) height) ;; make sure there is a center line
+              middle (/ height 2)
+              depths (reduce (fn [m [node top-dist bot-dist]]
+                               (assoc m (g/element-id node)
+                                 (cond (= top-dist bot-dist) middle
+                                       (< bot-dist top-dist) bot-dist
+                                       :else (- height top-dist))))
+                       {}
+                       (map vector vs ups downs))
+              dual-depths (reduce-kv (fn [d node depth]
+                                       (assoc d node (- height depth)))
+                            {} depths)]
+          (->Lattice
+            label
+            depths
+            dual-depths
+            (first tops)
+            (first bottoms)
+            #(g/in [label] %)
+            #(g/out [label] %))))
+      (throw (ex-info "Attempting to create an empty lattice" {:graph graph :label label})))))
 
 
 (defn depth [lattice v]
