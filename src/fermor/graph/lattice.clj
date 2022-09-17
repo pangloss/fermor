@@ -2,15 +2,23 @@
   (:require [fermor.protocols :refer [get-vertex element-id vertex?]]
             [fermor.graph :as fg :refer [edge-graph]]
             [fermor.graph.algo :refer [breadth-first-reduce breadth-first-nodes]]
-            [fermor.core :as g]
-            [clojure.walk :as walk]))
+            [fermor.core :as g]))
 
-(defrecord Lattice [label depths dual-depths top bottom up down])
+(defrecord SymmetricLattice [label depths dual-depths top bottom up down])
 
 (defn- max-path-length [rf v]
   (dec (apply max (map count (g/deepest-paths rf v)))))
 
-(defn lattice [graph label]
+(defn symmetric? [^SymmetricLattice lattice]
+  (let [depth (.depths lattice)
+        middle (/ (reduce max (vals depth)) 2)]
+    (->> (.top lattice)
+      (g/deepest-paths (.down lattice))
+      (map (fn [path]
+             (apply + (map (comp depth g/element-id) path))))
+      (every? zero?))))
+
+(defn symmetric-lattice [graph label]
   (let [vs (g/vertices-with-edge graph label)
         tops (remove #(seq (g/in-edges % [label])) vs)
         bottoms (remove #(seq (g/out-edges % [label])) vs)]
@@ -25,35 +33,37 @@
               middle (/ height 2)
               depths (reduce (fn [m [node top-dist bot-dist]]
                                (assoc m (g/element-id node)
-                                 (cond (= top-dist bot-dist) middle
-                                       (< bot-dist top-dist) bot-dist
-                                       :else (- height top-dist))))
+                                 (cond (= top-dist bot-dist) 0
+                                       (< bot-dist top-dist) (- bot-dist middle)
+                                       :else (- height top-dist middle))))
                        {}
                        (map vector vs ups downs))
               dual-depths (reduce-kv (fn [d node depth]
-                                       (assoc d node (- height depth)))
-                            {} depths)]
-          (->Lattice
-            label
-            depths
-            dual-depths
-            (first tops)
-            (first bottoms)
-            #(g/in [label] %)
-            #(g/out [label] %))))
+                                       (assoc d node (- depth)))
+                            {} depths)
+              lattice (->SymmetricLattice
+                        label
+                        depths
+                        dual-depths
+                        (first tops)
+                        (first bottoms)
+                        #(g/in [label] %)
+                        #(g/out [label] %))]
+          (if (symmetric? lattice)
+            lattice
+            (throw (ex-info "Non-symmetric lattice." {:graph graph :label label})))))
       (throw (ex-info "Attempting to create an empty lattice" {:graph graph :label label})))))
 
-
-(defn depth [lattice v]
-  (get-in lattice [:depths (g/element-id v)]))
+(defn depth [^SymmetricLattice lattice v]
+  ((.depths lattice) (g/element-id v)))
 
 (defn dual [lattice]
-  (->Lattice (.label lattice)
+  (->SymmetricLattice (.label lattice)
     (.dual-depths lattice) (.depths lattice)
     (.bottom lattice) (.top lattice)
     (.down lattice) (.up lattice)))
 
-(defn meet [^Lattice lattice a b]
+(defn meet [^SymmetricLattice lattice a b]
   (cond (= (.top lattice) a) b
         (= (.top lattice) b) a
         (= (.bottom lattice) a) (.bottom lattice)
@@ -73,30 +83,7 @@
           (breadth-first-reduce #(when (meet? %2) (reduced %2))
             nil (.down lattice) higher))))
 
-(defn join [^Lattice lattice a b]
+(defn join [^SymmetricLattice lattice a b]
   (meet (dual lattice) a b))
 
 
-(comment
-  (def g (g/forked
-           (g/add-edges (g/graph) :x
-             '[[top a]
-               [top b]
-               [a a']
-               [a' bottom]
-               [b bottom]])))
-
-  (def l (lattice g :x))
-
-  [l (dual l)]
-
-  (meet l
-    (g/get-vertex g 'a)
-    (g/get-vertex g 'a'))
-
-
-  (join l
-    (g/get-vertex g 'a)
-    (g/get-vertex g 'a'))
-
-  ,)
