@@ -5,13 +5,15 @@
                                                                            org.slf4j/slf4j-api]}
            io.lacuna/bifurcan           {:mvn/version "0.2.0-alpha6"}
            org.flatland/ordered         {:mvn/version "1.15.10"}
+           com.github.jordanlewis/data.union-find {:git/tag "1.0.0" :sha "0e8a06f"}
            horse.no/pure-conditioning {:git/url "https://github.com/pangloss/pure-conditioning"
                                        :sha "ff5ffe10ab1cb7f757d8dfdf6953cbc817748d5b"}}
  :aliases {:test     {:extra-paths ["test"]
                       :jvm-opts ["-XX:-OmitStackTraceInFastThrow"]
                       :extra-deps  {aysylu/loom {:mvn/version "1.0.2"}}}
-           :dev
-           {:extra-paths ["dev"]
-            :extra-deps
-            {com.github.jpmonettas/flow-storm-dbg {:mvn/version "2.3.141"}
-             com.github.jpmonettas/flow-storm-inst {:mvn/version "2.3.141"}}}}}
+           :dev      {:extra-paths ["dev"]}
+           :dev/dw   {:extra-deps
+                      {fipp/fipp {:mvn/version "0.6.26"}
+                       zprint/zprint {:mvn/version "1.2.4"}
+                       com.github.jpmonettas/flow-storm-dbg {:mvn/version "3.0.173"}
+                       com.github.jpmonettas/flow-storm-inst {:mvn/version "3.0.173"}}}}}

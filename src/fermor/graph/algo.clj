@@ -143,12 +143,14 @@
               (vswap! seen conj v)
               (loop [[child & children] (g/out labels v)
                      state state]
-                (if child
-                  (if (@seen child)
-                    (recur children state)
-                    (let [state (descend state child)]
-                      (recur children state)))
-                  (f state v))))]
+                (if (reduced? state)
+                  (unreduced state)
+                  (if child
+                    (if (@seen child)
+                      (recur children state)
+                      (let [state (descend state child)]
+                        (recur children state)))
+                    (f state v)))))]
       (descend state entry-node))))
 
 (defn prewalk-reduce
@@ -162,12 +164,14 @@
               (vswap! seen conj v)
               (loop [[child & children] (g/out labels v)
                      state (f state v)]
-                (if child
-                  (if (@seen child)
-                    (recur children state)
-                    (let [state (descend state child)]
-                      (recur children state)))
-                  state)))]
+                (if (reduced? state)
+                  (unreduced state) ;; early exit
+                  (if child
+                    (if (@seen child)
+                      (recur children state)
+                      (let [state (descend state child)]
+                        (recur children state)))
+                    state))))]
       (descend state entry-node))))
 
 (defn reverse-postwalk-reduce
@@ -320,3 +324,46 @@
                            (update :active-loops assoc tail [head tail])
                            (update :nesting conj [head tail]))))
                acc))))))))
+
+(defn breadth-first-nodes [children r]
+  (let [rf (if (fn? children) children (partial g/out children))]
+    ;; TODO: make this a lazy seq
+    (loop [ret []
+           seen #{}
+           queue clojure.lang.PersistentQueue/EMPTY
+           cqueue (if (g/vertex? r)
+                    (conj clojure.lang.PersistentQueue/EMPTY (delay [r]))
+                    (into clojure.lang.PersistentQueue/EMPTY (delay r)))]
+      (cond (seq queue)
+            (let [node (peek queue)]
+              (recur (conj ret node) seen (pop queue) (conj cqueue (delay (rf node)))))
+            (seq cqueue)
+            (recur ret
+              (into seen @(peek cqueue))
+              (into queue (comp (remove seen) (distinct)) @(peek cqueue))
+              (pop cqueue))
+            :else
+            ret))))
+
+(defn breadth-first-reduce
+  [f init children r]
+  (let [rf (if (fn? children) children (partial g/out children))]
+    (loop [state init
+           seen #{}
+           queue clojure.lang.PersistentQueue/EMPTY
+           cqueue (if (g/vertex? r)
+                    (conj clojure.lang.PersistentQueue/EMPTY (delay [r]))
+                    (into clojure.lang.PersistentQueue/EMPTY (delay r)))]
+      (cond (seq queue)
+            (let [node (peek queue)
+                  state (f state node)]
+              (if (reduced? state)
+                (unreduced state)
+                (recur state seen (pop queue) (conj cqueue (delay (rf node))))))
+            (seq cqueue)
+            (recur state
+              (into seen @(peek cqueue))
+              (into queue (comp (remove seen) (distinct)) @(peek cqueue))
+              (pop cqueue))
+            :else
+            state))))
