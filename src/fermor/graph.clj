@@ -98,6 +98,26 @@
                                          vertices))
       (seq edges) (-set-edge-documents edges))))
 
+(declare ->LinearGraph)
+
+(defn -remove-vertices [^IEdgeGraphs g edges documents settings metadata vertices]
+  (let [ids (mapv element-id vertices)]
+    (-remove-vertex-documents
+      (->LinearGraph
+        (reduce (fn [^IMap edges label]
+                  (reduce (fn [^IMap edges id]
+                            ;; I know it's present because I'm iterating the edge map's keys.
+                            (let [^IGraph edge (.get (.get edges label))]
+                              (.set edges label
+                                (.remove edge id))))
+                    edges
+                    ids)
+                  edges)
+          edges
+          (._getLabels g))
+        documents settings metadata)
+      vertices)))
+
 (deftype LinearGraph [^IMap edges ^IMap documents settings metadata]
   Object
   (equals [a b] (graph-equality a (-unwrap b)))
@@ -169,16 +189,7 @@
 
   RemoveVertices
   (remove-vertices [g vertices]
-    (-remove-vertex-documents
-     (->LinearGraph (reduce (fn [^IMap edges label]
-                              (reduce (fn [^IGraph edge v]
-                                        (.remove edge (element-id v)))
-                                      (._getEdgeGraph g label)
-                                      vertices))
-                            edges
-                            (._getLabels g))
-                    documents settings metadata)
-     vertices))
+    (-remove-vertices g edges documents settings metadata vertices))
 
   RemoveDocuments
   (remove-documents [g elements]
