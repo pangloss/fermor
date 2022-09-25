@@ -44,6 +44,10 @@
   (element-id [v] (element-id (.element v)))
   (get-graph [v] (get-graph (.element v)))
 
+  HasDocument
+  (has-document? [e]
+    (some? (get-document e)))
+
   GetDocument
   (get-document [v key] (get-document (.element v) key))
 
@@ -96,6 +100,10 @@
   Element
   (element-id [e] (element-id (.element e)))
   (get-graph [e] (get-graph (.element e)))
+
+  HasDocument
+  (has-document? [e]
+    (some? (get-document e)))
 
   GetDocument
   (get-document [e]

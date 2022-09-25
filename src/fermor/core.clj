@@ -20,8 +20,9 @@
                                get-vertex all-vertices
                                ;; MutableGraph
                                add-vertices add-edges set-documents
+                               remove-vertices remove-edges remove-documents
                                ;; Element
-                               element-id get-document
+                               element-id get-document get-graph
                                ;; Edge
                                out-vertex in-vertex
                                ;; Path
@@ -386,7 +387,7 @@
 (defn has-property
   "The document must be indexable, and if it is, returns true if the document
   contains the given key value pair."
-  [r k v]
+  [k v r]
   (filter (fn [e] (= v (get (get-document e) k))) (ensure-seq r)))
 
 ;; other
