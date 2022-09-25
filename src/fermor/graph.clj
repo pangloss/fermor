@@ -317,7 +317,6 @@
                     (.settings graph)
                     (.metadata graph)))))
 
-
 (defn- -set-edge-documents [g edge-document-pairs]
   (reduce-kv (fn [graph label pairs]
                (-add-edges g label nil
@@ -389,8 +388,11 @@
     (when-let [edge (._getEdgeGraph g label)]
       (try
         (->E label (->V g from-id nil nil) (->V g to-id nil nil)
-             (Optional/ofNullable (.edge edge from-id to-id))
-             true nil)
+          ;; NOTE: .edge is to fetch the edge document, but if there is no edge
+          ;; document it will also raise an exception. If it's possible, it
+          ;; would be better if I could actually check for the edge existence.
+          (Optional/ofNullable (.edge edge from-id to-id))
+          true nil)
         (catch IllegalArgumentException e
           nil))))
 
