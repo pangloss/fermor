@@ -55,9 +55,9 @@
 (defn add-edge
   "Add an edge from v to in-v with the given label string."
   ([graph label out-v in-v]
-   (add-edges graph label [[out-v in-v]]))
+   (add-edges graph label [[(element-id out-v) (element-id in-v)]]))
   ([graph label out-v in-v document]
-   (add-edges graph label [[out-v in-v document]])))
+   (add-edges graph label [[(element-id out-v) (element-id in-v) document]])))
 
 (defn add-vertex
   "Add a vertex id to the graph with or without an associated document.

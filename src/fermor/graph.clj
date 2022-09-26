@@ -108,7 +108,7 @@
                   (reduce (fn [^IMap edges id]
                             ;; I know it's present because I'm iterating the edge map's keys.
                             (let [^IGraph edge (.get (.get edges label))]
-                              (.set edges label
+                              (.put edges label
                                 (.remove edge id))))
                     edges
                     ids)
