@@ -5,7 +5,7 @@
             [fermor.protocols :as proto :refer [Wrappable -out-edges -in-edges
                                                 traversed-forward -label -unwrap
                                                 -out-edges-prepared -in-edges-prepared
-                                                -transpose]]
+                                                -transpose -has-vertex?]]
             [fermor.descend :refer [*descend *descents extrude *no-result-interval*]]
             fermor.graph
             [fermor.kind-graph :refer [->KGraph]]
@@ -53,7 +53,9 @@
    (proto/graph x)))
 
 (defn add-edge
-  "Add an edge from v to in-v with the given label string."
+  "Add an edge from v to in-v with the given label string.
+
+  Returns the updated graph"
   ([graph label out-v in-v]
    (add-edges graph label [[(element-id out-v) (element-id in-v)]]))
   ([graph label out-v in-v document]
@@ -63,19 +65,51 @@
   "Add a vertex id to the graph with or without an associated document.
 
   Adding a vertex with no document may have the effect of removing a document
-  from an already existing vertex."
+  from an already existing vertex.
+
+  Returns the updated graph."
   ([graph id]
    (add-vertices graph [[id nil]]))
   ([graph id document]
    (add-vertices graph [[id document]])))
 
+(defn has-vertex?
+  "Return true if a vertex or a vertex with the given id is present in the
+  graph. Optionally restrict the search to vertices that have edges with
+  specific labels."
+  ([graph id]
+   (if (vertex? id)
+     (-has-vertex? graph (element-id id))
+     (-has-vertex? graph id)))
+  ([graph id labels]
+   (if (vertex? id)
+     (-has-vertex? graph (element-id id) labels)
+     (-has-vertex? graph id labels))))
+
+(defn get-vertex!
+  "Attempt to look up a vertex.
+
+  If the vertex is not found, signal :vertex-not-found. If nothing manages the
+  signal, an exception will be raised."
+  [graph id]
+  (if (-has-vertex? graph id)
+    (get-vertex graph id)
+    ;; I'm not sure if the better default action is to return nil or raise an exception...
+    (condition :vertex-not-found [graph id]
+      #_(default nil)
+      (error "Vertex does not exist" {:graph graph :id id}))))
+
 (defn set-document
-  "Replace the document for a given element or vertex id."
+  "Replace the document for a given element or vertex id.
+
+  Returns the updated graph"
   [graph element-or-id document]
   (set-documents graph [[element-or-id document]]))
 
 (defn update-document
-  "Update the document for a given element."
+  "Update the document for a given element.
+
+  Returns the updated graph"
   ([graph element f]
    (set-document graph element (f (get-document element))))
   ([graph element f arg & args]

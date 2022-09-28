@@ -70,8 +70,8 @@
 
 (defprotocol GetVertex
   (get-vertex [g id] [g kind id]
-    "Find a vertex by ID. See also parse-vertex-id. By default does not check that the vertex exists. See `-has-vertex?`
-    "))
+    "Find a vertex by ID. See also parse-vertex-id. By default does not check
+    that the vertex exists. See `-has-vertex?` and `get-vertex!`"))
 
 (defprotocol HasVertex
   (-has-vertex? [g id] [g id labels]
