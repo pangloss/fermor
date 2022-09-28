@@ -199,6 +199,39 @@
   (set-documents [g element-document-pairs]
     (-set-documents g element-document-pairs))
 
+  HasVertex
+  (-has-vertex? [g id labels]
+    (reduce (fn [_ label]
+              (when-let [edge (._getEdgeGraph g label)]
+                (when (.isPresent (.indexOf edge id))
+                  (reduced true))))
+            false labels))
+  (-has-vertex? [g id]
+    (or (-has-vertex-document? g id)
+        (-has-vertex? g id (._getLabels g))))
+
+  GetEdge
+  (-get-edge [g label from-id to-id]
+    (when-let [edge (._getEdgeGraph g label)]
+      (try
+        (->E label (->V g from-id nil nil) (->V g to-id nil nil)
+          (Optional/ofNullable (.edge edge from-id to-id))
+          true nil)
+        (catch IllegalArgumentException e
+          nil))))
+
+  AllVertices
+  (all-vertices [g]
+    (->> (edge-graphs g)
+         (map #(.vertices (val %)))
+         (apply concat (vertex-ids-with-document g))
+         distinct
+         (map #(->V g % nil nil))))
+
+  GetVertex
+  (get-vertex [g id]
+    (->V g id nil nil))
+
   Linear
   (to-forked [g]
     (->ForkedGraph (.forked (.mapValues edges
