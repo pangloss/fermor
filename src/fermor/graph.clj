@@ -219,9 +219,12 @@
   (-get-edge [g label from-id to-id]
     (when-let [edge (._getEdgeGraph g label)]
       (try
-        (->E label (->V g from-id nil nil) (->V g to-id nil nil)
-          (Optional/ofNullable (.edge edge from-id to-id))
-          true nil)
+        (do
+          ;; The only way to test for edge existence seems to be to call .edge and see if it raises.
+          ;; FIXME: try to find a better way to do this.
+          (.edge edge from-id to-id)
+          ;; Don't cache the document in a mutable graph.
+          (->E label (->V g from-id nil nil) (->V g to-id nil nil) nil true nil))
         (catch IllegalArgumentException e
           nil))))
 
@@ -593,6 +596,8 @@
   (traversed-forward [e] used-forward))
 
 (defn- -get-edge-document [^E e]
+  ;; The document cache is only populated when elements are retrieved, and only
+  ;; if it's a forked graph.
   (if-let [p ^Optional (._getDocument e)]
     (when (.isPresent p)
       (.get p))
@@ -687,7 +692,8 @@
       (when (.isPresent document)
         (.get document))
       (let [p (.get (-documents graph) id)]
-        (set! (.document e) p)
+        (when (forked? graph)
+          (set! (.document e) p))
         (when (.isPresent p)
           (.get p))))))
 
@@ -776,11 +782,17 @@
   "The printed representation of a vertex. If you handle the :default-graph
   condition this will point to the vertex in that graph, but if not, it will
   produce a vertex object which does not necessarily correspond to any vertex in
-  any actual graph."
+  any actual graph.
+
+  If you provide a document, it will only be attached if there is no default
+  graph configured or if the default graph is forked."
   ([id]
    (->V (condition :default-graph nil optional) id nil nil))
   ([id document]
-   (->V (condition :default-graph nil optional) id (Optional/ofNullable document) nil)))
+   (let [g (condition :default-graph nil optional)]
+     (->V g id
+       (when (or (nil? g) (forked? g)) (Optional/ofNullable document))
+       nil))))
 
 (def -v v)
 
@@ -792,7 +804,10 @@
   ([out-id label in-id]
    (->E label (v out-id) (v in-id) nil true nil))
   ([out-id label [document] in-id]
-   (->E label (v out-id) (v in-id) (Optional/ofNullable document) true nil)))
+   (let [g (condition :default-graph nil optional)]
+     (->E label (v out-id) (v in-id)
+       (when (or (nil? g) (forked? g)) (Optional/ofNullable document))
+       true nil))))
 
 (defn e->in
   "The printed representation of an edge to the vertex with out-id from the
@@ -802,7 +817,10 @@
   ([out-id label in-id]
    (->E label (v out-id) (v in-id) nil false nil))
   ([out-id label [document] in-id]
-   (->E label (v out-id) (v in-id) (Optional/ofNullable document) false nil)))
+   (let [g (condition :default-graph nil optional)]
+     (->E label (v out-id) (v in-id)
+       (when (or (nil? g) (forked? g)) (Optional/ofNullable document))
+       false nil))))
 
 (def -e-> e->)
 (def -e->in e->in)

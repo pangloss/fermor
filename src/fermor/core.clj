@@ -65,6 +65,8 @@
   "Add an edge from v to in-v with the given label string.
 
   Returns the updated graph"
+  ([label out-v in-v]
+   (add-edges (get-graph out-v) label [[(element-id out-v) (element-id in-v)]]))
   ([graph label out-v in-v]
    (add-edges graph label [[(element-id out-v) (element-id in-v)]]))
   ([graph label out-v in-v document]
