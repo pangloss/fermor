@@ -101,25 +101,15 @@
                                          vertices))
       (seq edges) (-set-edge-documents edges))))
 
-(declare ->LinearGraph)
-
-(defn -remove-vertices [^IEdgeGraphs g edges documents settings metadata vertices]
+(defn -remove-vertices [^IEdgeGraphs g ^IMap edges documents settings metadata vertices]
   (let [ids (mapv element-id vertices)]
-    (-remove-vertex-documents
-      (->LinearGraph
-        (reduce (fn [^IMap edges label]
-                  (reduce (fn [^IMap edges id]
-                            ;; I know it's present because I'm iterating the edge map's keys.
-                            (let [^IGraph edge (.get (.get edges label))]
-                              (.put edges label
-                                (.remove edge id))))
-                    edges
-                    ids)
-                  edges)
-          edges
-          (._getLabels g))
-        documents settings metadata)
-      vertices)))
+    (doseq [label (._getLabels g)
+            id ids]
+      (let [^IGraph edge (.get (.get edges label))]
+        (.put edges label
+          (.remove edge id)))))
+  (-remove-vertex-documents g vertices)
+  g)
 
 (deftype LinearGraph [^IMap edges ^IMap documents settings metadata]
   Object
@@ -151,9 +141,11 @@
     (let [x (.get edges label)]
       (if (.isEmpty x)
         g
-        (->LinearGraph (.remove edges label) documents settings nil))))
+        (do (.remove edges label)
+            g))))
   (_addEdgeGraph ^ILabelGraphs [g label ^IGraph edge]
-    (->LinearGraph (.put edges label edge) documents settings nil))
+    (do (.put edges label edge)
+        g))
 
   GraphTranspose
   (-transpose [g]
@@ -164,9 +156,9 @@
                             (if-let [edge (._getEdgeGraph g label)]
                               (.put edges label (.transpose edge))
                               edges))
-                          (.linear (Map.))
-                          labels)
-                  documents settings nil))
+                    (.linear (Map.))
+                    labels)
+      documents settings nil))
 
   AddEdges
   (add-edges ^LinearGraph [^LinearGraph graph label pairs-or-triples]
@@ -180,17 +172,12 @@
 
   RemoveEdges
   (remove-edges [g es]
-    (->LinearGraph (->> (group-by -label es)
-                        (reduce-kv (fn [^IMap edges label es]
-                                     (if-let [^IGraph edge (._getEdgeGraph g label)]
-                                       (.put edges label
-                                             (reduce (fn [^IGraph edge e]
-                                                       (.unlink edge (element-id (out-vertex e)) (element-id (in-vertex e))))
-                                                     edge
-                                                     es))
-                                       edges))
-                                   edges))
-                   documents settings metadata))
+    (doseq [[label es] (group-by -label es)
+            :let [^IGraph edge (._getEdgeGraph g label)]
+            :when edge
+            e es]
+      (.unlink edge (element-id (out-vertex e)) (element-id (in-vertex e))))
+    g)
 
   RemoveVertices
   (remove-vertices [g vertices]
@@ -210,10 +197,10 @@
               (when-let [edge (._getEdgeGraph g label)]
                 (when (.isPresent (.indexOf edge id))
                   (reduced true))))
-            false labels))
+      false labels))
   (-has-vertex? [g id]
     (or (-has-vertex-document? g id)
-        (-has-vertex? g id (._getLabels g))))
+      (-has-vertex? g id (._getLabels g))))
 
   GetEdge
   (-get-edge [g label from-id to-id]
@@ -231,10 +218,10 @@
   AllVertices
   (all-vertices [g]
     (->> (edge-graphs g)
-         (map #(.vertices (val %)))
-         (apply concat (vertex-ids-with-document g))
-         distinct
-         (map #(->V g % nil nil))))
+      (map #(.vertices (val %)))
+      (apply concat (vertex-ids-with-document g))
+      distinct
+      (map #(->V g % nil nil))))
 
   GetVertex
   (get-vertex [g id]
@@ -243,12 +230,12 @@
   Linear
   (to-forked [g]
     (->ForkedGraph (.forked (.mapValues edges
-                                        (reify BiFunction
-                                          (apply [this k v]
-                                            (.forked ^IGraph v)))))
-                   (.forked documents)
-                   settings
-                   metadata)))
+                              (reify BiFunction
+                                (apply [this k v]
+                                  (.forked ^IGraph v)))))
+      (.forked documents)
+      settings
+      metadata)))
 
 (defn build-graph
   "Create a new linear graph.
@@ -279,34 +266,6 @@
 (def ^:private standard-merge-behavior
   (reify java.util.function.BinaryOperator
     (apply [this a b] b)))
-
-(defn merge-with
-  "Merge graphs. When edges or documents conflict, resolve conflicts using
-  merge-edge or merge-doc. Those functions are called with the conflicting
-  elements in the same style as [[clojure.core/merge-with]].
-
-  Preserves the settings and metadata of the first graph."
-  ([merge-edge merge-doc g1]
-   g1)
-  ([merge-edge merge-doc ^LinearGraph g1 ^LinearGraph g2]
-   (let [edges (.merge (.edges g1) (.edges g2)
-                 (binary-op
-                   (fn [^IGraph eg1 ^IGraph eg2]
-                     (.merge eg1 eg2 (binary-op merge-edge)))))
-         docs (.merge (.documents g1) (.documents g2)
-                (binary-op merge-doc))]
-     (->LinearGraph edges docs (.settings g1) (.metadata g1))))
-  ([merge-edge merge-doc g1 g2 g3 & gs]
-   (reduce (partial merge-with merge-edge merge-doc) g1 (cons g2 (cons g3 gs)))))
-
-(defn merge
-  "Merge graphs. When edges or documents conflict, keep the later ones.
-  Preserves the settings and metadata of the first graph."
-  ([g1] g1)
-  ([g1 g2]
-   (merge-with standard-merge-behavior standard-merge-behavior g1 g2))
-  ([g1 g2 g3 & gs]
-   (reduce merge g1 (cons g2 (cons g3 gs)))))
 
 (defn add-value-semantics [graph]
   ;; Note: public DirectedAcyclicGraph(ToLongFunction<V> hashFn, BiPredicate<V, V> equalsFn) exists, too.
@@ -355,7 +314,7 @@
    (-add-edges graph label nil pairs-or-triples))
   (^LinearGraph [^LinearGraph graph label edge-type pairs-or-triples]
    (-add-edges graph label edge-type pairs-or-triples
-               (get-in (.settings graph) [:edge-builder label] add-unique-edge)))
+     (get-in (.settings graph) [:edge-builder label] add-unique-edge)))
   (^LinearGraph [^LinearGraph graph label edge-type pairs-or-triples edge-builder]
    (let [^IGraph edges (let [x (.get ^IMap (.edges graph) label)]
                          (if (.isEmpty x)
@@ -363,11 +322,9 @@
                            (.get x)))
          edges (reduce (fn [^IGraph edges [out-v in-v edge-document]]
                          (edge-builder graph edges out-v in-v edge-document))
-                       edges pairs-or-triples)]
-     (->LinearGraph (.put ^IMap (.edges graph) label edges)
-                    (.documents graph)
-                    (.settings graph)
-                    (.metadata graph)))))
+                 edges pairs-or-triples)]
+     (.put ^IMap (.edges graph) label edges)
+     graph)))
 
 (defn- -set-edge-documents [g edge-document-pairs]
   (reduce-kv (fn [graph label pairs]
@@ -382,26 +339,19 @@
              g (group-by (comp -label first) edge-document-pairs)))
 
 (defn- -add-vertices ^LinearGraph [^LinearGraph graph id-document-pairs]
-  (->LinearGraph (.edges graph)
-                 (reduce (fn [^IMap props [id document]]
-                           (if (some? document)
-                             (.put props id document)
-                             (if (.contains props id)
-                               props
-                               (.put props id nil))))
-                         (.documents graph)
-                         id-document-pairs)
-                 (.settings graph)
-                 (.metadata graph)))
+  (let [^IMap docs (.documents graph)]
+    (doseq [[id document] id-document-pairs]
+      (if (some? document)
+        (.put docs id document)
+        (when-not (.contains docs id)
+          (.put docs id nil)))))
+  graph)
 
 (defn- -remove-vertex-documents [^LinearGraph g vertices]
-  (->LinearGraph (.edges g)
-                 (reduce (fn [^IMap documents v]
-                           (.remove documents (element-id v)))
-                         (.documents g)
-                         vertices)
-                 (.settings g)
-                 (.metadata g)))
+  (let [^IMap docs (.documents g)]
+    (doseq [v vertices]
+      (.remove docs (element-id v))))
+  g)
 
 (defn- -forked-set-documents [g element-document-pairs]
   (forked
@@ -504,6 +454,39 @@
                    (.linear documents)
                    settings
                    metadata)))
+
+(defn merge-with
+  "Merge graphs. When edges or documents conflict, resolve conflicts using
+  merge-edge or merge-doc. Those functions are called with the conflicting
+  elements in the same style as [[clojure.core/merge-with]].
+
+  May be called with either linear or forked graphs, but always returns a linear
+  graph.
+
+  Preserves the settings and metadata of the first graph."
+  ([merge-edge merge-doc g1]
+   (linear g1))
+  ([merge-edge merge-doc g1 g2]
+   (let [^LinearGraph g1 (linear (forked g1)) ;; Ensure we don't clobber g1, be set up to return a linear graph.
+         ^ForkedGraph g2 (forked g2)
+         edges (.merge (.edges g1) (.edges g2)
+                 (binary-op
+                   (fn [^IGraph eg1 ^IGraph eg2]
+                     (.merge eg1 eg2 (binary-op merge-edge)))))
+         docs (.merge (.documents g1) (.documents g2)
+                (binary-op merge-doc))]
+     (->LinearGraph edges docs (.settings g1) (.metadata g1))))
+  ([merge-edge merge-doc g1 g2 g3 & gs]
+   (reduce (partial merge-with merge-edge merge-doc) g1 (cons g2 (cons g3 gs)))))
+
+(defn merge
+  "Merge graphs. When edges or documents conflict, keep the later ones.
+  Preserves the settings and metadata of the first graph."
+  ([g1] g1)
+  ([g1 g2]
+   (merge-with standard-merge-behavior standard-merge-behavior g1 g2))
+  ([g1 g2 g3 & gs]
+   (reduce merge g1 (cons g2 (cons g3 gs)))))
 
 (defn ^IMap -documents [g]
   (if (instance? ForkedGraph g)
