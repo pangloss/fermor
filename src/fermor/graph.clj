@@ -513,7 +513,7 @@
     (.edges ^LinearGraph g)))
 
 (defn- -has-vertex-document? [g id]
-  (.isPresent (.get (-documents g) id)))
+  (.contains (-documents g) id))
 
 (defn graph-settings [g]
   (if (graph-settings? g)

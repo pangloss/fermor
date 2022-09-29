@@ -5,7 +5,7 @@
             [fermor.protocols :as proto :refer [wrappable? Wrappable -out-edges -in-edges
                                                 traversed-forward -label -unwrap
                                                 -out-edges-prepared -in-edges-prepared
-                                                -transpose -has-vertex?]]
+                                                -transpose -has-vertex? -get-edge]]
             [fermor.descend :refer [*descend *descents extrude *no-result-interval*]]
             fermor.graph
             [fermor.kind-graph :refer [->KGraph]]
@@ -62,6 +62,29 @@
   ([graph label out-v in-v document]
    (add-edges graph label [[(element-id out-v) (element-id in-v) document]])))
 
+(defn get-edge
+  "Efficiently look up an edge by label and the vertices it connects.
+
+  Returns nil if not found."
+  ([label out-v in-v]
+   (-get-edge (get-graph out-v) label (element-id out-v) (element-id in-v)))
+  ([graph label out-v in-v]
+   (-get-edge graph label (element-id out-v) (element-id in-v))))
+
+(defn add-edge!
+  "The same as add-edge, but returns the created edge instead of returning the
+  graph.
+
+  Only works on linear graphs."
+  ([graph label out-v in-v]
+   (assert (linear? graph))
+   (get-edge (add-edge graph label out-v in-v)
+     label out-v in-v))
+  ([graph label out-v in-v document]
+   (assert (linear? graph))
+   (get-edge (add-edge graph label out-v in-v document)
+     label out-v in-v)))
+
 (defn add-vertex
   "Add a vertex id to the graph with or without an associated document.
 
@@ -73,6 +96,43 @@
    (add-vertices graph [[id nil]]))
   ([graph id document]
    (add-vertices graph [[id document]])))
+
+(defn add-vertex!
+  "The same as add-vertex, but returns the created vertex instead of returning
+  the graph.
+
+  Only works on linear graphs."
+  ([graph id]
+   (assert (linear? graph))
+   (get-vertex (add-vertex graph id) id))
+  ([graph id document]
+   (assert (linear? graph))
+   (get-vertex (add-vertex graph id document) id)))
+
+(defn add-vertices!
+  "The same as add-vertices, but returns the created vertices instead of
+  returning the graph.
+
+  Only works on linear graphs."
+  [g id-document-pairs]
+  (let [g (add-vertices g id-document-pairs)]
+    (map #(get-vertex g (first %)) id-document-pairs)))
+
+(defn add-edges!
+  "The same as add-edges, but returns the created edges instead of returning the
+  graph.
+
+  Only works on linear graphs."
+  ([graph label pairs-or-triples]
+   (assert (linear? graph))
+   (let [g (add-edges graph label pairs-or-triples)]
+     (map #(-get-edge g label (first %) (second %))
+       pairs-or-triples)))
+  ([graph label edge-type pairs-or-triples]
+   (assert (linear? graph))
+   (let [g (add-edges graph label edge-type pairs-or-triples)]
+     (map #(-get-edge g label (first %) (second %))
+       pairs-or-triples))))
 
 (defn has-vertex?
   "Return true if a vertex or a vertex with the given id is present in the
