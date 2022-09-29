@@ -3,16 +3,15 @@
   (:require [loom.graph :as loom]
             loom.attr
             [fermor.graph :refer [vertices-with-edge vertex-ids-with-document forked linear]]
-            [fermor.custom-graph :as custom :refer [-wrapper -wrapper-settings]]
-            [fermor.core :as g]))
+            [fermor.custom-graph :as custom :refer [-wrapper -wrapper-settings]]))
 
 (defn- to-id [node]
-  (if (g/vertex? node)
+  (if (vertex? node)
     (element-id node)
     node))
 
 (defn- to-v [g node]
-  (if (g/vertex? node)
+  (if (vertex? node)
     node
     (get-vertex g node)))
 
@@ -20,7 +19,7 @@
   (-> x -wrapper -wrapper-settings :edge-labels))
 
 (defn- to-e [g element]
-  (if (or (g/vertex? element) (g/edge? element))
+  (if (or (vertex? element) (edge? element))
     element
     (if (vector? element)
       (some #(apply -get-edge g % element)

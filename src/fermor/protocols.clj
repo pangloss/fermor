@@ -189,25 +189,66 @@
    For searching within very long paths, this method may be faster than `path.
    "))
 
+(def ^:private PLinear (:on-interface Linear))
+(def ^:private PForked (:on-interface Forked))
+(def ^:private PGraph (:on-interface Graph))
+(def ^:private PVertex (:on-interface Vertex))
+(def ^:private PEdge (:on-interface Edge))
+(def ^:private PElement (:on-interface Element))
+(def ^:private PPath (:on-interface Path))
+(def ^:private PSubpath (:on-interface ISubpath))
+(def ^:private PWrappable (:on-interface Wrappable))
+(def ^:private PGraphSettings (:on-interface GraphSettings))
+
 (defn graph?
   "Returns true if x is a graph."
   [x]
-  (satisfies? Graph x))
+  (and x (.isAssignableFrom PGraph (class x))))
+
+(defn linear?
+  "Returns true if x is a linear graph."
+  [x]
+  (and x (.isAssignableFrom PLinear (class x))))
+
+(defn forked?
+  "Returns true if x is a forked graph."
+  [x]
+  (and x (.isAssignableFrom PForked (class x))))
 
 (defn vertex?
   "Returns true if x is a vertex."
   [x]
-  (and x (satisfies? Vertex x)))
+  (and x (.isAssignableFrom PVertex (class x))))
 
 (defn edge?
   "Returns true if x is an edge."
   [x]
-  (and x (satisfies? Edge x)))
+  (and x (.isAssignableFrom PEdge (class x))))
 
 (defn element?
   "Returns true if x is either a vertex or an edge."
   [x]
-  (and x (satisfies? Element x)))
+  (and x (.isAssignableFrom PElement (class x))))
+
+(defn path?
+  "Returns true if x is a path."
+  [x]
+  (and x (.isAssignableFrom PPath (class x))))
+
+(defn subpath?
+  "Returns true if x is a subpath."
+  [x]
+  (and x (.isAssignableFrom PSubpath (class x))))
+
+(defn wrappable?
+  "Returns true if x is wrappable."
+  [x]
+  (and x (.isAssignableFrom PWrappable (class x))))
+
+(defn graph-settings?
+  "Returns true if x is wrappable."
+  [x]
+  (and x (.isAssignableFrom PGraphSettings (class x))))
 
 (extend-type Object
   Wrappable
@@ -220,8 +261,8 @@
 (defn graph
   "Return the graph associated with the given element. If x is a graph, return x."
   [x]
-  (cond (satisfies? Graph x) x
-        (satisfies? Element x) (get-graph x)))
+  (cond (graph? x) x
+        (element? x) (get-graph x)))
 
 ;; Kind Id:
 

@@ -49,11 +49,11 @@
     (doseq [[setter value] [[set-E! E+] [set-V! V+] [set-F! F+] [set-L! L+]]
             target [E+ V+ F+ L+]]
        (setter target value))
-    (condp satisfies? graph
-      Forked (->mForkedGraph graph F+)
-      Linear (->mLinearGraph graph L+)
-      Vertex (->mV graph V+)
-      Edge   (->mE graph E+))))
+    (cond
+      (forked? graph) (->mForkedGraph graph F+)
+      (linear? graph) (->mLinearGraph graph L+)
+      (vertex? graph) (->mV graph V+)
+      (edge? graph)   (->mE graph E+))))
 
 (defmacro wrap-fn* [interface]
   `(let [interface# (if (map? ~interface)

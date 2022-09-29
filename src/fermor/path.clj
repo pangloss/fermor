@@ -159,7 +159,7 @@
 
 (deftype ReverseSubpath [rpath metadata]
   Object
-  (equals [a b] (when (satisfies? Path b)
+  (equals [a b] (when (path? b)
                   (= (reverse-path a) (reverse-path b))))
   (hashCode [e] (.hashCode (reverse-path e)))
 
@@ -196,7 +196,7 @@
 
 (deftype VecSubpath [^clojure.lang.IPersistentVector path metadata]
   Object
-  (equals [a b] (when (satisfies? Path b)
+  (equals [a b] (when (path? b)
                   (= (reverse-path a) (reverse-path b))))
   (hashCode [e] (.hashCode (reverse-path e)))
 
@@ -235,17 +235,17 @@
 
 (defn subpath
   ([e]
-   (if (satisfies? Path e)
+   (if (path? e)
      e
      (ReverseSubpath. (reverse-path e) nil)))
   ([e from-end]
    (if (<= from-end 0)
      e
-     (if (satisfies? ISubpath e)
+     (if (subpath? e)
        (-subpath e from-end)
        (ReverseSubpath. (drop from-end (reverse-path e)) nil))))
   ([e from-end length]
-   (if (satisfies? ISubpath e)
+   (if (subpath? e)
      (-subpath e from-end length)
      (ReverseSubpath. (take length (drop from-end (reverse-path e))) nil))))
 
@@ -256,9 +256,9 @@
    (->VecSubpath [] nil))
   ([e]
    (cond
-     (satisfies? ISubpath e)
+     (subpath? e)
      e
-     (satisfies? Path e)
+     (subpath? e)
      (->ReverseSubpath (reverse-path e) nil)
      :else
      (->VecSubpath [e] nil))))
@@ -292,7 +292,7 @@
         (instance? PEdge e) (.element ^PEdge e)
         (instance? PGraph e) (.graph ^PGraph e)
         (instance? PValue e) (.value ^PValue e)
-        (satisfies? ISubpath e) (last e)
+        (subpath? e) (last e)
         :else e))
 
 (defn reset-path [e]
@@ -302,15 +302,16 @@
     PValue (->PValue (no-path e) nil nil)
     (with-path e)))
 
+#_
 (defn path?
   "Returns true if the given element is wrapped to track paths."
   [e]
-  (satisfies? ISubpath e))
+  (subpath? e))
 
 (defn has-path?
   "Returns true if the given element is wrapped to track paths."
   [e]
-  (satisfies? Path e))
+  (path? e))
 
 (defn no-path!
   "Extracts the raw vertex or edge even if it is wrapped in multiple levels of paths."

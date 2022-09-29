@@ -8,27 +8,23 @@
            (java.util Optional)
            (clojure.lang IMeta)))
 
-(declare linear? forked? -graph? -vertex? -edge?)
+(declare ->LinearGraph ->ForkedGraph ->V ->E
+  graph-equality -get-edge-document --in-edges --out-edges -documents
+  -edges -has-vertex-document? edge-graphs)
 
 (defn linear
   "Make the graph mutable (but only therefore useable in linear code)"
   [x]
-  (if (-graph? x)
-    (if (forked? x)
-      (to-linear x)
-      x)
-    (condition :unknown-type-for/linear x)))
+  (cond (forked? x) (to-linear x)
+        (linear? x) x
+        :else (condition :unknown-type-for/linear x)))
 
 (defn forked
   "Make the graph immutable."
   [x]
-  (if (-graph? x)
-    (if (linear? x)
-      (to-forked x)
-      x)
-    (condition :unknown-type-for/forked x)))
-
-(declare ->LinearGraph ->ForkedGraph ->V ->E graph-equality -get-edge-document --in-edges --out-edges)
+  (cond (linear? x) (to-forked x)
+        (forked? x) x
+        :else (condition :unknown-type-for/forked x)))
 
 (defn dag-edge
   "Provide this as the value of edge-type when calling add-edges (the first time, when the edge type
@@ -63,7 +59,8 @@
 ;; backing edge graph like or wrapping digraph or dag.
 
 
-(declare -add-vertices -add-edges -remove-vertex-documents -set-edge-documents vertex-ids-with-document)
+(declare -add-vertices -add-edges -remove-vertex-documents -set-edge-documents
+  vertex-ids-with-document)
 
 (definterface IEdgeGraphs
   (_getLabels ^clojure.lang.IPersistentVector [])
@@ -83,8 +80,8 @@
 (defn- -remove-documents [g elements]
   (let [{:keys [vertices edges]}
         (group-by (fn [e]
-                    (cond (-vertex? e) :vertices
-                          (-edge? e) :edges))
+                    (cond (vertex? e) :vertices
+                          (edge? e) :edges))
                   elements)]
     (cond-> g
       (seq vertices) (-remove-vertex-documents vertices)
@@ -93,8 +90,8 @@
 (defn- -set-documents [g element-document-pairs]
   (let [{:keys [vertices edges ids]}
         (group-by (fn [[e]]
-                    (cond (-vertex? e) :vertices
-                          (-edge? e) :edges
+                    (cond (vertex? e) :vertices
+                          (edge? e) :edges
                           :else :ids))
                   element-document-pairs)]
     (cond-> g
@@ -134,6 +131,8 @@
     (if (= m metadata)
       o
       (->LinearGraph edges documents settings m)))
+
+  Graph
 
   GraphSettings
   (-settings [g] settings)
@@ -401,11 +400,6 @@
                  (.settings g)
                  (.metadata g)))
 
-(defn- -has-vertex-document? [^LinearGraph g id]
-  (.isPresent (.get ^IMap (.documents g) id)))
-
-(declare edge-graphs)
-
 (defn- -forked-set-documents [g element-document-pairs]
   (forked
    (set-documents (linear g)
@@ -489,8 +483,8 @@
     (forked
      (remove-documents (linear g)
                        (map (fn [e]
-                              (cond (-vertex? e) e
-                                    (-edge? e) e
+                              (cond (vertex? e) e
+                                    (edge? e) e
                                     :else (get-vertex g e)))
                             elements))))
 
@@ -508,15 +502,28 @@
                    settings
                    metadata)))
 
+(defn ^IMap -documents [g]
+  (if (instance? ForkedGraph g)
+    (.documents ^ForkedGraph g)
+    (.documents ^LinearGraph g)))
+
+(defn ^IMap -edges [g]
+  (if (instance? ForkedGraph g)
+    (.edges ^ForkedGraph g)
+    (.edges ^LinearGraph g)))
+
+(defn- -has-vertex-document? [g id]
+  (.isPresent (.get (-documents g) id)))
+
 (defn graph-settings [g]
-  (if (satisfies? GraphSettings g)
+  (if (graph-settings? g)
     (-settings g)))
 
 (defn document-equality? [g]
   (:document-equality? (graph-settings g)))
 
-(defn vertex-ids-with-document [^ForkedGraph g]
-  (seq (.keys (.documents g))))
+(defn vertex-ids-with-document [g]
+  (seq (.keys (-documents g))))
 
 (defn- graph-equality [a b]
   ;; TODO: include settings in equality and hashing?
@@ -589,8 +596,8 @@
   (if-let [p ^Optional (._getDocument e)]
     (when (.isPresent p)
       (.get p))
-    (let [g ^ForkedGraph (get-graph (.out_v e))
-          edges (.get ^IMap (.edges g) (.label e))]
+    (let [g (get-graph (.out_v e))
+          edges (.get (-edges g) (.label e))]
       (when (.isPresent edges)
         (let [edges ^IGraph (.get edges)
               edge (.edge edges
@@ -620,7 +627,7 @@
 ;; the reason to use extend is it is easier to redefine the instance methods vs direct implementation within the type.
 ;; Most likely this turns into a TODO: integrate all `extend` use back into the defining type.
 
-(deftype V [^ForkedGraph graph id ^:unsynchronized-mutable ^java.util.Optional document metadata]
+(deftype V [graph id ^:unsynchronized-mutable ^java.util.Optional document metadata]
   Object
   (equals [a b] (let [b (-unwrap b)]
                   (and (instance? V b)
@@ -679,53 +686,10 @@
     (if document
       (when (.isPresent document)
         (.get document))
-      (let [p (.get ^IMap (.documents graph) id)]
+      (let [p (.get (-documents graph) id)]
         (set! (.document e) p)
         (when (.isPresent p)
           (.get p))))))
-
-(defn -graph?
-  "Returns true if the object is a graph backed by either a forked or linear
-  fermor graph.
-
-  This test is much faster than the generic `graph?` test which checks the protocol."
-  [x]
-  (let [obj (-unwrap x)]
-    (or (instance? ForkedGraph obj)
-      (instance? LinearGraph obj))))
-
-(defn -vertex?
-  "Returns true if the object is a fermor graph vertex.
-
-  This test is much faster than the generic `vertex?` test which checks the protocol."
-  [x]
-  (let [obj (-unwrap x)]
-    (instance? V obj)))
-
-(defn -edge?
-  "Returns true if the object is a fermor graph edge.
-
-  This test is much faster than the generic `edge?` test which checks the protocol."
-  [x]
-  (let [obj (-unwrap x)]
-    (instance? E obj)))
-
-(defn linear?
-  "Returns true if the underlying graph is linear (ie. editable)"
-  [x]
-  (let [obj (-unwrap x)]
-    (or (instance? LinearGraph obj)
-      (and (or (instance? V obj) (instance? E obj))
-        (linear? (get-graph obj))))))
-
-(defn forked?
-  "Returns true if the underlying graph is forked (ie. not editable)"
-  [x]
-  (let [obj (-unwrap x)]
-    (or (instance? ForkedGraph obj)
-      (and (or (instance? V obj) (instance? E obj))
-        (forked? (get-graph obj))))))
-
 
 (defn edges-with-label?
   "Returns true if the given vertex has any edges with the given label."
@@ -795,7 +759,7 @@
   (print-method o *out*))
 
 (defmethod print-method V [e ^java.io.Writer w]
-  (if (linear? v)
+  (if (linear? e)
     (.write w "(-v ")
     (.write w "(v "))
   (print-method (.id ^V e) w)

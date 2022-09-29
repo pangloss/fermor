@@ -2,7 +2,7 @@
   (:require [pure-conditioning :refer [condition manage lazy-conditions error default]]
             [potemkin :refer [import-vars import-def]]
             [flatland.ordered.set :refer [ordered-set]]
-            [fermor.protocols :as proto :refer [Wrappable -out-edges -in-edges
+            [fermor.protocols :as proto :refer [wrappable? Wrappable -out-edges -in-edges
                                                 traversed-forward -label -unwrap
                                                 -out-edges-prepared -in-edges-prepared
                                                 -transpose -has-vertex?]]
@@ -16,6 +16,8 @@
 (import-vars (fermor.protocols set-config!
                                ;; Graph
                                get-vertex all-vertices
+                               ;; Predicates
+                               graph? vertex? edge? element? linear? forked? path?
                                ;; MutableGraph
                                add-vertices add-edges set-documents
                                remove-vertices remove-edges remove-documents
@@ -28,13 +30,13 @@
                                ;; KindId
                                id k kind lookup)
              ;; Bifurcan Graph
-             (fermor.graph linear forked linear? forked? dag-edge digraph-edge
+             (fermor.graph linear forked dag-edge digraph-edge
                            undirected-edge build-graph vertices-with-edge
                            ;; read printed graph elements
                            v e-> e->in
                            -v -e-> -e->in)
              ;; Path
-             (fermor.path with-path path? path subpath no-path no-path! cyclic-path?
+             (fermor.path with-path path subpath no-path no-path! cyclic-path?
                path-vertices path-edges)
              ;; Kind Graph
              (fermor.kind-graph V E-> E->in))
@@ -50,29 +52,6 @@
    (build-graph))
   ([x]
    (proto/graph x)))
-
-(defn graph?
-  "Returns true if the object is a graph."
-  [x]
-  ;; Avoid the protocol penalty for the case where we are looking at
-  ;; a graph.
-  (or (fermor.graph/-graph? x) (fermor.protocols/graph? x)))
-
-(defn vertex?
-  "Returns true if the object is a vertex."
-  [x]
-  (or (fermor.graph/-vertex? x) (fermor.protocols/vertex? x)))
-
-(defn edge?
-  "Returns true if the object is an edge."
-  [x]
-  (or (fermor.graph/-edge? x) (fermor.protocols/edge? x)))
-
-(defn element?
-  "Returns true if the object is an element."
-  [x]
-  (or (fermor.graph/-vertex? x) (fermor.graph/-edge? x)
-    (fermor.protocols/element? x)))
 
 (defn add-edge
   "Add an edge from v to in-v with the given label string.
@@ -153,7 +132,7 @@
 (defn unwrap
   "Recursively unwrap any element or just return the input if it's not wrapped"
   [e]
-  (if (satisfies? Wrappable e)
+  (if (wrappable? e)
     (-unwrap e)
     e))
 
