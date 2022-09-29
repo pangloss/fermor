@@ -306,6 +306,26 @@
     (-> L+ (->set-documents g) (set-documents element-document-pairs)
         (->mLinearGraph L+)))
 
+  AllVertices
+  (all-vertices [g]
+    (let [V+ (vertex-wrapper L+)]
+      (map #(->mV % V+) (-> L+ (->all-vertices g) all-vertices))))
+
+  GetVertex
+  (get-vertex [g id]
+    (some-> (get-vertex (->get-vertex L+ g) id) (->mV (vertex-wrapper L+))))
+
+  HasVertex
+  (-has-vertex? [g id labels]
+    (-> L+ (->has-vertex g) (-has-vertex? id labels)))
+  (-has-vertex? [g id]
+    (-> L+ (->has-vertex g) (-has-vertex? id)))
+
+  GetEdge
+  (-get-edge [g label from-id to-id]
+    (some-> (-get-edge (->get-edge L+ g) label from-id to-id)
+            (->mE (edge-wrapper L+))))
+
   Linear
   (to-forked [g]
     (-> L+ (->to-forked g) to-forked (->mForkedGraph (forked-graph-wrapper L+)))))

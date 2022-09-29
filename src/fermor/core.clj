@@ -14,8 +14,6 @@
            (fermor.protocols TraversalDirection KindId)))
 
 (import-vars (fermor.protocols set-config!
-                               ;; Predicates
-                               graph? vertex? edge? element?
                                ;; Graph
                                get-vertex all-vertices
                                ;; MutableGraph
@@ -30,10 +28,11 @@
                                ;; KindId
                                id k kind lookup)
              ;; Bifurcan Graph
-             (fermor.graph linear forked dag-edge digraph-edge undirected-edge build-graph
-                           vertices-with-edge
+             (fermor.graph linear forked linear? forked? dag-edge digraph-edge
+                           undirected-edge build-graph vertices-with-edge
                            ;; read printed graph elements
-                           v e-> e->in)
+                           v e-> e->in
+                           -v -e-> -e->in)
              ;; Path
              (fermor.path with-path path? path subpath no-path no-path! cyclic-path?
                path-vertices path-edges)
@@ -51,6 +50,29 @@
    (build-graph))
   ([x]
    (proto/graph x)))
+
+(defn graph?
+  "Returns true if the object is a graph."
+  [x]
+  ;; Avoid the protocol penalty for the case where we are looking at
+  ;; a graph.
+  (or (fermor.graph/-graph? x) (fermor.protocols/graph? x)))
+
+(defn vertex?
+  "Returns true if the object is a vertex."
+  [x]
+  (or (fermor.graph/-vertex? x) (fermor.protocols/vertex? x)))
+
+(defn edge?
+  "Returns true if the object is an edge."
+  [x]
+  (or (fermor.graph/-edge? x) (fermor.protocols/edge? x)))
+
+(defn element?
+  "Returns true if the object is an element."
+  [x]
+  (or (fermor.graph/-vertex? x) (fermor.graph/-edge? x)
+    (fermor.protocols/element? x)))
 
 (defn add-edge
   "Add an edge from v to in-v with the given label string.

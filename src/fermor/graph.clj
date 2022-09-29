@@ -8,19 +8,25 @@
            (java.util Optional)
            (clojure.lang IMeta)))
 
+(declare linear? forked? -graph? -vertex? -edge?)
+
 (defn linear
   "Make the graph mutable (but only therefore useable in linear code)"
   [x]
-  (cond (satisfies? Forked x) (to-linear x)
-        (satisfies? Linear x) x
-        :else (condition :unknown-type-for/linear x)))
+  (if (-graph? x)
+    (if (forked? x)
+      (to-linear x)
+      x)
+    (condition :unknown-type-for/linear x)))
 
 (defn forked
   "Make the graph immutable."
   [x]
-  (cond (satisfies? Linear x) (to-forked x)
-        (satisfies? Forked x) x
-        :else (condition :unknown-type-for/forked x)))
+  (if (-graph? x)
+    (if (linear? x)
+      (to-forked x)
+      x)
+    (condition :unknown-type-for/forked x)))
 
 (declare ->LinearGraph ->ForkedGraph ->V ->E graph-equality -get-edge-document --in-edges --out-edges)
 
@@ -77,8 +83,8 @@
 (defn- -remove-documents [g elements]
   (let [{:keys [vertices edges]}
         (group-by (fn [e]
-                    (cond (vertex? e) :vertices
-                          (edge? e) :edges))
+                    (cond (-vertex? e) :vertices
+                          (-edge? e) :edges))
                   elements)]
     (cond-> g
       (seq vertices) (-remove-vertex-documents vertices)
@@ -87,8 +93,8 @@
 (defn- -set-documents [g element-document-pairs]
   (let [{:keys [vertices edges ids]}
         (group-by (fn [[e]]
-                    (cond (vertex? e) :vertices
-                          (edge? e) :edges
+                    (cond (-vertex? e) :vertices
+                          (-edge? e) :edges
                           :else :ids))
                   element-document-pairs)]
     (cond-> g
@@ -483,8 +489,8 @@
     (forked
      (remove-documents (linear g)
                        (map (fn [e]
-                              (cond (vertex? e) e
-                                    (edge? e) e
+                              (cond (-vertex? e) e
+                                    (-edge? e) e
                                     :else (get-vertex g e)))
                             elements))))
 
@@ -678,6 +684,49 @@
         (when (.isPresent p)
           (.get p))))))
 
+(defn -graph?
+  "Returns true if the object is a graph backed by either a forked or linear
+  fermor graph.
+
+  This test is much faster than the generic `graph?` test which checks the protocol."
+  [x]
+  (let [obj (-unwrap x)]
+    (or (instance? ForkedGraph obj)
+      (instance? LinearGraph obj))))
+
+(defn -vertex?
+  "Returns true if the object is a fermor graph vertex.
+
+  This test is much faster than the generic `vertex?` test which checks the protocol."
+  [x]
+  (let [obj (-unwrap x)]
+    (instance? V obj)))
+
+(defn -edge?
+  "Returns true if the object is a fermor graph edge.
+
+  This test is much faster than the generic `edge?` test which checks the protocol."
+  [x]
+  (let [obj (-unwrap x)]
+    (instance? E obj)))
+
+(defn linear?
+  "Returns true if the underlying graph is linear (ie. editable)"
+  [x]
+  (let [obj (-unwrap x)]
+    (or (instance? LinearGraph obj)
+      (and (or (instance? V obj) (instance? E obj))
+        (linear? (get-graph obj))))))
+
+(defn forked?
+  "Returns true if the underlying graph is forked (ie. not editable)"
+  [x]
+  (let [obj (-unwrap x)]
+    (or (instance? ForkedGraph obj)
+      (and (or (instance? V obj) (instance? E obj))
+        (forked? (get-graph obj))))))
+
+
 (defn edges-with-label?
   "Returns true if the given vertex has any edges with the given label."
   ;; FIXME : is this correct in both directions?
@@ -722,6 +771,9 @@
         (print-method (.label e) w)
         (.write w "-")))
     (do
+      (.write w "(")
+      (when (linear? e)
+        (.write w "-"))
       (if (traversed-forward e)
         (.write w as-out)
         (.write w as-in))
@@ -737,13 +789,15 @@
       (.write w ")"))))
 
 (defmethod print-method E [^E e ^java.io.Writer w]
-  (print-edge "(e-> " "(e->in " e w))
+  (print-edge "e-> " "e->in " e w))
 
 (defmethod simple-dispatch E [o]
   (print-method o *out*))
 
 (defmethod print-method V [e ^java.io.Writer w]
-  (.write w "(v ")
+  (if (linear? v)
+    (.write w "(-v ")
+    (.write w "(v "))
   (print-method (.id ^V e) w)
   (when-not *compact-vertex-printing*
     (when-let [p (get-document e)]
@@ -764,6 +818,8 @@
   ([id document]
    (->V (condition :default-graph nil optional) id (Optional/ofNullable document) nil)))
 
+(def -v v)
+
 (defn e->
   "The printed representation of an edge from the vertex with out-id to the
   vertex in-id. If you handle the :default-graph condition this will point to
@@ -783,3 +839,6 @@
    (->E label (v out-id) (v in-id) nil false nil))
   ([out-id label [document] in-id]
    (->E label (v out-id) (v in-id) (Optional/ofNullable document) false nil)))
+
+(def -e-> e->)
+(def -e->in e->in)
