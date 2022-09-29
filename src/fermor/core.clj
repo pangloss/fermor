@@ -45,6 +45,14 @@
 (import-def fermor.protocols/element-id vertex-id)
 (import-def fermor.protocols/element-id edge-id)
 
+
+(defmacro assert-linear! [graph]
+  (if *assert*
+    `(let [graph# ~graph]
+       (assert (linear? graph#))
+       graph#)
+    graph))
+
 (defn graph
   "Return the graph associated with the given element. If x is a graph, return
   x. If called with no argument, returns a new graph."
@@ -76,14 +84,21 @@
   graph.
 
   Only works on linear graphs."
+  ([label out-v in-v]
+   (add-edge! (get-graph out-v) label out-v in-v))
   ([graph label out-v in-v]
-   (assert (linear? graph))
-   (get-edge (add-edge graph label out-v in-v)
-     label out-v in-v))
+   (-> graph
+     (or (get-graph out-v))
+     assert-linear!
+     (add-edge label out-v in-v)
+     (get-edge
+       label out-v in-v)))
   ([graph label out-v in-v document]
-   (assert (linear? graph))
-   (get-edge (add-edge graph label out-v in-v document)
-     label out-v in-v)))
+   (-> graph
+     (or (get-graph out-v))
+     assert-linear!
+     (add-edge label out-v in-v document)
+     (get-edge label out-v in-v))))
 
 (defn add-vertex
   "Add a vertex id to the graph with or without an associated document.
@@ -103,11 +118,15 @@
 
   Only works on linear graphs."
   ([graph id]
-   (assert (linear? graph))
-   (get-vertex (add-vertex graph id) id))
+   (-> graph
+     assert-linear!
+     (add-vertex id)
+     (get-vertex id)))
   ([graph id document]
-   (assert (linear? graph))
-   (get-vertex (add-vertex graph id document) id)))
+   (-> graph
+     assert-linear!
+     (add-vertex id document)
+     (get-vertex id))))
 
 (defn add-vertices!
   "The same as add-vertices, but returns the created vertices instead of
@@ -124,13 +143,11 @@
 
   Only works on linear graphs."
   ([graph label pairs-or-triples]
-   (assert (linear? graph))
-   (let [g (add-edges graph label pairs-or-triples)]
+   (let [g (add-edges (assert-linear! graph) label pairs-or-triples)]
      (map #(-get-edge g label (first %) (second %))
        pairs-or-triples)))
   ([graph label edge-type pairs-or-triples]
-   (assert (linear? graph))
-   (let [g (add-edges graph label edge-type pairs-or-triples)]
+   (let [g (add-edges (assert-linear! graph) label edge-type pairs-or-triples)]
      (map #(-get-edge g label (first %) (second %))
        pairs-or-triples))))
 
