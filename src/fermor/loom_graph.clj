@@ -32,21 +32,27 @@
 (deftype LoomGraph [graph]
   loom/Graph
   (nodes [g]
-    (concat (map element-id (mapcat #(vertices-with-edge (-unwrap graph) %) (use-labels graph)))
-            (vertex-ids-with-document (-unwrap graph))))
+    (concat
+      (->> (use-labels graph)
+        (mapcat #(vertices-with-edge (-unwrap graph) %))
+        (map element-id))
+      (->> graph
+        -unwrap
+        vertex-ids-with-document)))
   (edges [g]
-    (mapcat #(map as-pair (-out-edges % (use-labels graph)))
-            (all-vertices graph)))
+    (->> (use-labels graph)
+      (all-edges (-unwrap graph))
+      (map as-pair)))
   (has-node? [g node]
     (boolean
-     (or (has-document? (to-v graph node))
-         (-has-vertex? graph (to-id node) (use-labels graph)))))
+      (or (has-document? (to-v graph node))
+        (-has-vertex? graph (to-id node) (use-labels graph)))))
   (has-edge? [g n1 n2]
     (reduce (fn [_ label]
               (if-let [x (-get-edge graph label (to-id n1) (to-id n2))]
                 (reduced true)
                 false))
-            false (use-labels graph)))
+      false (use-labels graph)))
   (successors* [g node] (map (comp element-id in-vertex) (-out-edges (to-v graph node) (use-labels graph))))
   (out-degree [g node] (count (-out-edges (to-v graph node) (use-labels graph))))
   (out-edges [g node] (map as-pair (-out-edges (to-v graph node) (use-labels graph))))
@@ -64,14 +70,14 @@
       (:weight/no-edge (-wrapper-settings (-wrapper graph)))))
   (weight* [g n1 n2]
     (loom/weight* g (some #(-get-edge graph % (to-id n1) (to-id n2))
-                          (use-labels graph))))
+                      (use-labels graph))))
 
   loom.attr/AttrGraph
   (attr [g node-or-edge k] (some-> (loom.attr/attrs g node-or-edge) (get k)))
   (attr [g n1 n2 k] (some-> (loom.attr/attrs g n1 n2) (get k)))
   (attrs [g node-or-edge] (get-document (to-e graph node-or-edge)))
   (attrs [g n1 n2] (some-> (some #(-get-edge graph % (to-id n1) (to-id n2)) (use-labels graph))
-                           get-document)))
+                     get-document)))
 
 (deftype LoomEditableGraph [graph]
   loom.attr/AttrGraph

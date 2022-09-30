@@ -68,10 +68,10 @@
     (testing "Construction, loom/nodes, loom/edges"
       (are [expected got] (= expected got)
            #{1 2 3 4} (set (loom/nodes g1))
-           #{[1 2] [2 1] [1 3] [3 1] [2 3] [3 2]} (set (loom/edges g1))
+           #{[1 2] [1 3] [2 3]} (set (loom/edges g1))
            #{1 2 3 4 5 6 7 8 9} (set (loom/nodes g4))
-           #{[1 2] [2 1] [1 3] [3 1] [2 3]
-             [3 2] [5 6] [6 5] [7 8] [8 7]} (set (loom/edges g4))
+           #{[1 2]  [1 3]  [2 3]
+              [5 6]  [7 8] } (set (loom/edges g4))
              #{} (set (loom/nodes g5))
              #{} (set (loom/edges g5))
              ;true (loom/has-node? g1 4)
@@ -160,10 +160,9 @@
     (testing "Construction, loom/nodes, loom/edges"
       (are [expected got] (= expected got)
            #{1 2 3 4} (set (loom/nodes g1))
-           #{[1 2] [2 1] [1 3] [3 1] [2 3] [3 2]} (set (loom/edges g1))
+           #{[1 2] [1 3] [2 3]} (set (loom/edges g1))
            #{1 2 3 4 5 6 7 8 9} (set (loom/nodes g4))
-           #{[1 2] [2 1] [1 3] [3 1] [2 3]
-             [3 2] [5 6] [6 5] [7 8] [8 7]} (set (loom/edges g4))
+           #{[1 2] [1 3] [2 3] [5 6] [7 8]} (set (loom/edges g4))
              #{} (set (loom/nodes g5))
              #{} (set (loom/edges g5))
              true (loom/has-node? g1 4)
