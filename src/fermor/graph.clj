@@ -225,6 +225,26 @@
       distinct
       (map #(->V g % nil nil))))
 
+  AllEdges
+  (all-edges [g]
+    (all-edges g (._getLabels ^IEdgeGraphs g)))
+  (all-edges [g labels]
+    (letfn [(next-edges [labels]
+              (when (seq labels)
+                (let [label (first labels)]
+                  (if-let [^IGraph edge (._getEdgeGraph ^IEdgeGraphs g label)]
+                    (lazy-seq
+                      (concat
+                        (map (fn [^IEdge e]
+                               (->E label
+                                 (->V g (.from e) nil nil)
+                                 (->V g (.to e) nil nil)
+                                 nil true nil))
+                          (iterator-seq (.iterator (.edges edge))))
+                        (next-edges (rest labels))))
+                    (next-edges (rest labels))))))]
+      (next-edges labels)))
+
   GetVertex
   (get-vertex [g id]
     (->V g id nil nil))
@@ -428,6 +448,26 @@
          (apply concat (vertex-ids-with-document g))
          distinct
          (map #(->V g % nil nil))))
+
+  AllEdges
+  (all-edges [g]
+    (all-edges g (._getLabels ^IEdgeGraphs g)))
+  (all-edges [g labels]
+    (letfn [(next-edges [labels]
+              (when (seq labels)
+                (let [label (first labels)]
+                  (if-let [^IGraph edge (._getEdgeGraph ^IEdgeGraphs g label)]
+                    (lazy-seq
+                      (concat
+                        (map (fn [^IEdge e]
+                               (->E label
+                                 (->V g (.from e) nil nil)
+                                 (->V g (.to e) nil nil)
+                                 nil true nil))
+                          (iterator-seq (.iterator (.edges edge))))
+                        (next-edges (rest labels))))
+                    (next-edges (rest labels))))))]
+      (next-edges labels)))
 
   GetVertex
   (get-vertex [g id]

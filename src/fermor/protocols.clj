@@ -68,6 +68,9 @@
 (defprotocol AllVertices
   (all-vertices [g] [g kind]))
 
+(defprotocol AllEdges
+  (all-edges [g] [g labels]))
+
 (defprotocol GetVertex
   (get-vertex [g id] [g kind id]
     "Find a vertex by ID. See also parse-vertex-id. By default does not check

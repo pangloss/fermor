@@ -15,7 +15,7 @@
 
 (import-vars (fermor.protocols set-config!
                                ;; Graph
-                               get-vertex all-vertices
+                               get-vertex all-vertices all-edges
                                ;; Predicates
                                graph? vertex? edge? element? linear? forked? path?
                                ;; MutableGraph
