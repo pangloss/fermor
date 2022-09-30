@@ -91,6 +91,7 @@
   (wrap-inline ->edge-vertices fermor.protocols.EdgeVertices)
   (wrap-inline ->settings fermor.protocols.GraphSettings)
   (wrap-inline ->all-vertices fermor.protocols.AllVertices)
+  (wrap-inline ->all-edges fermor.protocols.AllEdges)
   (wrap-inline ->get-vertex fermor.protocols.GetVertex)
   (wrap-inline ->to-linear fermor.protocols.Forked)
   (wrap-inline ->to-forked fermor.protocols.Linear)
@@ -217,7 +218,18 @@
   AllVertices
   (all-vertices [g]
     (let [V+ (vertex-wrapper F+)]
-      (map #(->mV % V+) (-> F+ (->all-vertices g) all-vertices))))
+      (map #(->mV % V+)
+        (-> F+ (->all-vertices g) all-vertices))))
+
+  AllEdges
+  (all-edges [g]
+    (let [E+ (edge-wrapper F+)]
+      (map #(->mE % E+)
+        (-> F+ (->all-edges g) all-edges))))
+  (all-edges [g labels]
+    (let [E+ (edge-wrapper F+)]
+      (map #(->mE % E+)
+        (-> F+ (->all-edges g) (all-edges labels)))))
 
   GetVertex
   (get-vertex [g id]
@@ -310,6 +322,16 @@
   (all-vertices [g]
     (let [V+ (vertex-wrapper L+)]
       (map #(->mV % V+) (-> L+ (->all-vertices g) all-vertices))))
+
+  AllEdges
+  (all-edges [g]
+    (let [E+ (edge-wrapper L+)]
+      (map #(->mE % E+)
+        (-> L+ (->all-edges g) all-edges))))
+  (all-edges [g labels]
+    (let [E+ (edge-wrapper L+)]
+      (map #(->mE % E+)
+        (-> L+ (->all-edges g) (all-edges labels)))))
 
   GetVertex
   (get-vertex [g id]
