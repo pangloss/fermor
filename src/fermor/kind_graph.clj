@@ -96,6 +96,12 @@
     (->> (all-vertices g)
          (of-kind kind)))
 
+  AllEdges
+  (all-edges [g]
+    (all-edges graph))
+  (all-edges [g labels]
+    (all-edges graph labels))
+
   GetVertex
   (get-vertex [g kind-id]
     (->KVertex (->V (-unwrap g) kind-id nil nil)))
