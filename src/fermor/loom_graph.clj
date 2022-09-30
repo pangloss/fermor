@@ -5,6 +5,8 @@
             [fermor.graph :refer [vertices-with-edge vertex-ids-with-document forked linear]]
             [fermor.custom-graph :as custom :refer [-wrapper -wrapper-settings]]))
 
+(set! *warn-on-reflection* true)
+
 (defn- to-id [node]
   (if (vertex? node)
     (element-id node)

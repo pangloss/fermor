@@ -3,6 +3,8 @@
   (:require [clojure.pprint :refer [simple-dispatch]]
             fermor.graph))
 
+(set! *warn-on-reflection* true)
+
 (defprotocol IWrapper
   (-wrapper-settings [w])
   (set-F! [w f])
@@ -48,34 +50,37 @@
         V+ (Wrapper. settings VertexImplType (or ->VImpl no-wrapper) nil nil nil nil)]
     (doseq [[setter value] [[set-E! E+] [set-V! V+] [set-F! F+] [set-L! L+]]
             target [E+ V+ F+ L+]]
-       (setter target value))
+      (setter target value))
     (cond
       (forked? graph) (->mForkedGraph graph F+)
       (linear? graph) (->mLinearGraph graph L+)
       (vertex? graph) (->mV graph V+)
       (edge? graph)   (->mE graph E+))))
 
+(defn has-iface? [^java.lang.Class interface wrapper]
+  (.isAssignableFrom interface (implementor-type wrapper)))
+
 (defmacro wrap-fn* [interface]
   `(let [interface# (if (map? ~interface)
                       (:on-interface ~interface) ;; get interface from protocol
                       ~interface)]
      (fn [wrapper# element#]
-       (if (.isAssignableFrom interface# (implementor-type wrapper#))
+       (if (has-iface? interface# wrapper#)
          ((make-implementor wrapper#) element#)
          (plain element#)))))
 
 (defmacro wrap-fn [name interface]
   `(let [interface# (if (map? ~interface)
-                     (:on-interface ~interface) ;; get interface from protocol
-                     ~interface)]
+                      (:on-interface ~interface) ;; get interface from protocol
+                      ~interface)]
      (defn ~name [wrapper# element#]
-       (if (.isAssignableFrom interface# (implementor-type wrapper#))
+       (if (has-iface? interface# wrapper#)
          ((make-implementor wrapper#) element#)
          (plain element#)))))
 
 (defmacro wrap-inline [name interface]
   `(defmacro ~name [wrapper# element#]
-     `(if (.isAssignableFrom ~~interface (implementor-type ~wrapper#))
+     `(if (has-iface? ~~interface ~wrapper#)
         ((make-implementor ~wrapper#) ~element#)
         (plain ~element#))))
 
@@ -477,7 +482,7 @@
 
 (defn- extend-wrapped [type protocol method-specs]
   (let [wrapped-impls (reduce (fn [wrapped-impls [method result-type]]
-                                (let [compiled (compile-wrapper (ns-resolve (.ns (:var protocol)) (symbol (name method)))
+                                (let [compiled (compile-wrapper (ns-resolve (.ns ^clojure.lang.Var (:var protocol)) (symbol (name method)))
                                                                 (wrap-fn* protocol)
                                                                 result-type)]
                                   (assoc wrapped-impls method compiled)))

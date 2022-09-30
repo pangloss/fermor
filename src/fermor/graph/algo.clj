@@ -7,6 +7,8 @@
            (java.util Optional)
            (fermor.graph IEdgeGraphs)))
 
+(set! *warn-on-reflection* true)
+
 ;; TODO: fn to convert directed labels to undirected.
 
 (defn- ^Predicate as-predicate [f]

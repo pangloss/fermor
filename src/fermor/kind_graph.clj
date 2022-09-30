@@ -4,6 +4,8 @@
             [clojure.pprint :refer [simple-dispatch]])
   (:import (fermor.protocols KindId)))
 
+(set! *warn-on-reflection* true)
+
 ;; NOTE: the kind-graph was created before custom-graph and is fairly pointless
 ;; as a standalone graph with almost no delta from the base graph type. It
 ;; should probably be switched over to a simple custom graph instead, pending
