@@ -3,10 +3,12 @@
   (:require [fermor.protocols :refer :all]
             [pure-conditioning :refer [condition error default optional]]
             [clojure.pprint :refer [simple-dispatch]])
-  (:import (io.lacuna.bifurcan DirectedGraph DirectedAcyclicGraph IGraph IMap Map)
+  (:import (io.lacuna.bifurcan DirectedGraph DirectedAcyclicGraph IGraph IMap Map IEdge)
            (java.util.function BiFunction)
            (java.util Optional)
            (clojure.lang IMeta)))
+
+(set! *warn-on-reflection* true)
 
 (declare ->LinearGraph ->ForkedGraph ->V ->E
   graph-equality -get-edge-document --in-edges --out-edges -documents
@@ -154,7 +156,7 @@
     ;; This will only include listed labels in the output graph
     (LinearGraph. (reduce (fn [^IMap edges label]
                             (if-let [edge (._getEdgeGraph g label)]
-                              (.put edges label (.transpose edge))
+                              (.put edges label (.transpose ^IGraph edge))
                               edges))
                     (.linear (Map.))
                     labels)
@@ -195,7 +197,7 @@
   (-has-vertex? [g id labels]
     (reduce (fn [_ label]
               (when-let [edge (._getEdgeGraph g label)]
-                (when (.isPresent (.indexOf edge id))
+                (when (.isPresent (.indexOf ^IGraph edge id))
                   (reduced true))))
       false labels))
   (-has-vertex? [g id]
@@ -209,7 +211,7 @@
         (do
           ;; The only way to test for edge existence seems to be to call .edge and see if it raises.
           ;; FIXME: try to find a better way to do this.
-          (.edge edge from-id to-id)
+          (.edge ^IGraph edge from-id to-id)
           ;; Don't cache the document in a mutable graph.
           (->E label (->V g from-id nil nil) (->V g to-id nil nil) nil true nil))
         (catch IllegalArgumentException e
@@ -218,7 +220,7 @@
   AllVertices
   (all-vertices [g]
     (->> (edge-graphs g)
-      (map #(.vertices (val %)))
+      (map #(.vertices ^IGraph (val %)))
       (apply concat (vertex-ids-with-document g))
       distinct
       (map #(->V g % nil nil))))
@@ -255,7 +257,7 @@
    (->LinearGraph (.linear (Map.)) (.linear (Map.)) settings metadata)))
 
 (defn IGraph->graph [^IGraph g label]
-  (._addEdgeGraph (build-graph) label g))
+  (._addEdgeGraph ^IEdgeGraphs (build-graph) label g))
 
 (defn- binary-op [f]
   (if (instance? java.util.function.BinaryOperator f)
@@ -373,12 +375,12 @@
   (-has-vertex? [g id labels]
     (reduce (fn [_ label]
               (when-let [edge (._getEdgeGraph g label)]
-                (when (.isPresent (.indexOf edge id))
+                (when (.isPresent (.indexOf ^IGraph edge id))
                   (reduced true))))
-            false labels))
+      false labels))
   (-has-vertex? [g id]
     (or (-has-vertex-document? g id)
-        (-has-vertex? g id (._getLabels g))))
+      (-has-vertex? g id (._getLabels g))))
 
   GetEdge
   (-get-edge [g label from-id to-id]
@@ -388,7 +390,7 @@
           ;; NOTE: .edge is to fetch the edge document, but if there is no edge
           ;; document it will also raise an exception. If it's possible, it
           ;; would be better if I could actually check for the edge existence.
-          (Optional/ofNullable (.edge edge from-id to-id))
+          (Optional/ofNullable (.edge ^IGraph edge from-id to-id))
           true nil)
         (catch IllegalArgumentException e
           nil))))
@@ -422,7 +424,7 @@
   AllVertices
   (all-vertices [g]
     (->> (edge-graphs g)
-         (map #(.vertices (val %)))
+         (map #(.vertices ^IGraph (val %)))
          (apply concat (vertex-ids-with-document g))
          distinct
          (map #(->V g % nil nil))))
@@ -434,12 +436,12 @@
   RemoveDocuments
   (remove-documents [g elements]
     (forked
-     (remove-documents (linear g)
-                       (map (fn [e]
-                              (cond (vertex? e) e
-                                    (edge? e) e
-                                    :else (get-vertex g e)))
-                            elements))))
+      (remove-documents (linear g)
+        (map (fn [e]
+               (cond (vertex? e) e
+                     (edge? e) e
+                     :else (get-vertex g e)))
+          elements))))
 
   SetDocuments
   (set-documents [g element-document-pairs]
@@ -448,12 +450,12 @@
   Forked
   (to-linear [g]
     (->LinearGraph (.mapValues (.linear edges)
-                               (reify BiFunction
-                                 (apply [this k v]
-                                   (.linear ^IGraph v))))
-                   (.linear documents)
-                   settings
-                   metadata)))
+                     (reify BiFunction
+                       (apply [this k v]
+                         (.linear ^IGraph v))))
+      (.linear documents)
+      settings
+      metadata)))
 
 (defn merge-with
   "Merge graphs. When edges or documents conflict, resolve conflicts using
@@ -469,11 +471,11 @@
   ([merge-edge merge-doc g1 g2]
    (let [^LinearGraph g1 (linear (forked g1)) ;; Ensure we don't clobber g1, be set up to return a linear graph.
          ^ForkedGraph g2 (forked g2)
-         edges (.merge (.edges g1) (.edges g2)
+         edges (.merge ^IMap (.edges g1) (.edges g2)
                  (binary-op
                    (fn [^IGraph eg1 ^IGraph eg2]
                      (.merge eg1 eg2 (binary-op merge-edge)))))
-         docs (.merge (.documents g1) (.documents g2)
+         docs (.merge ^IMap (.documents g1) (.documents g2)
                 (binary-op merge-doc))]
      (->LinearGraph edges docs (.settings g1) (.metadata g1))))
   ([merge-edge merge-doc g1 g2 g3 & gs]
@@ -712,7 +714,7 @@
                      (.in edge (.id v))))))
           labels))
 
-(defn print-edge [as-out as-in ^E e ^java.io.Writer w]
+(defn print-edge [^String as-out ^String as-in ^E e ^java.io.Writer w]
   (if *compact-edge-printing*
     (if (traversed-forward e)
       (do
