@@ -757,7 +757,7 @@
                      (.in edge (.id v))))))
           labels))
 
-(defn print-edge [^String as-out ^String as-in ^E e ^java.io.Writer w]
+(defn print-edge* [^String as-out ^String as-in ^E e ^java.io.Writer w]
   (if *compact-edge-printing*
     (if (traversed-forward e)
       (do
@@ -786,13 +786,16 @@
       (print-method (element-id (.in_v e)) w)
       (.write w ")"))))
 
+(defn print-edge [^E e ^java.io.Writer w]
+  (print-edge* "e-> " "e->in " e w))
+
 (defmethod print-method E [^E e ^java.io.Writer w]
-  (print-edge "e-> " "e->in " e w))
+  (print-edge e w))
 
 (defmethod simple-dispatch E [o]
-  (print-method o *out*))
+  (print-edge o *out*))
 
-(defmethod print-method V [e ^java.io.Writer w]
+(defn print-vertex [e ^java.io.Writer w]
   (if (linear? e)
     (.write w "(-v ")
     (.write w "(v "))
@@ -803,8 +806,11 @@
       (print-method p w)))
   (.write w ")"))
 
+(defmethod print-method V [e ^java.io.Writer w]
+  (print-vertex e w))
+
 (defmethod simple-dispatch V [o]
-  (print-method o *out*))
+  (print-vertex o *out*))
 
 (defn v
   "The printed representation of a vertex. If you handle the :default-graph

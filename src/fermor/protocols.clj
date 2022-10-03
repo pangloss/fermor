@@ -275,7 +275,8 @@
 
   Enables a sort of vertex typing."
   [kind id]
-  (->KindId kind id))
+  (when id
+    (->KindId kind id)))
 
 (defn k
   "Synonym for `id` Create an ID object that also incorporates a type."
