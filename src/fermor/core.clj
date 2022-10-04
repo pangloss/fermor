@@ -440,7 +440,7 @@
 (defn in*
   "Returns a lazy seq of lazy seqs of vertices with edges pointing in to this vertex.
 
-  If f is given, it is called once for each collection of vertices related to a single vertex in the route."
+  If f is given, it is called once per collection of vertices related to each vertex in the route."
   ([r]
    (->> r in-e* (map out-v)))
   ([labels r]
@@ -451,7 +451,7 @@
 (defn out*
   "Returns a lazy seq of lazy seqs of vertices with edges pointing out of this vertex.
 
-  If f is given, it is called once for each collection of vertices related to a single vertex in the route."
+  If f is given, it is called once per collection of vertices related to each vertex in the route."
   ([r]
    (->> r out-e* (map in-v)))
   ([labels r]
@@ -472,13 +472,19 @@
   ([labels f r] (apply concat (both* labels f r))))
 
 (defn in
-  "Returns a lazy seq of vertices with edges pointing in to this vertex "
+  "Returns a lazy seq of vertices with edges pointing in to this vertex
+  
+  The arity-3 version applies `(f vertices)` to the group of vertices traversed
+  to from each vertex. See [[in-sorted]] for a use of this in practice."
   ([r] (apply concat (in* r)))
   ([labels r] (apply concat (in* labels r)))
   ([labels f r] (apply concat (in* labels f r))))
 
 (defn out
-  "Returns a lazy seq of vertices with edges pointing out of this vertex "
+  "Returns a lazy seq of vertices with edges pointing out of this vertex.
+
+  The arity-3 version applies `(f vertices)` to the group of vertices traversed
+  to from each vertex. See [[out-sorted]] for a use of this in practice."
   ([r] (apply concat (out* r)))
   ([labels r] (apply concat (out* labels r)))
   ([labels f r] (apply concat (out* labels f r))))
