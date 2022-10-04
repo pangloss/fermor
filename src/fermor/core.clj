@@ -1175,7 +1175,9 @@
              (drop-take (rest steps) (drop (first steps) coll))))))
 
 (defmacro f->>
-  "Returns a function wrapping the chained methods."
+  "Returns a function wrapping the chained methods.
+
+  Calls ensure-seq on the input, so will not work for methods expecting a single vertex."
   [& forms]
   `(fn [r#]
      (->> r# ensure-seq ~@forms)))
