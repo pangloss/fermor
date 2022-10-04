@@ -600,6 +600,8 @@
   Element
   (element-id [e] nil)
   (get-graph [e] (get-graph out-v))
+  (exists? [e]
+    (-get-edge (get-graph out-v) label (element-id out-v) (element-id in-v)))
 
   HasDocument
   (has-document? [e]
@@ -706,6 +708,7 @@
   Element
   (element-id [e] id)
   (get-graph [e] graph)
+  (exists? [e] (-has-vertex? graph id))
 
   HasDocument
   (has-document? [e]

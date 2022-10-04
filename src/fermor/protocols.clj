@@ -154,7 +154,8 @@
 
 (defprotocol Element
   (element-id [e] "Return the id of the given vertex or edge.")
-  (get-graph [e] "Return the graph the element is part of."))
+  (get-graph [e] "Return the graph the element is part of.")
+  (exists? [e] "Return true if the element exists"))
 
 (defprotocol Vertex)
 

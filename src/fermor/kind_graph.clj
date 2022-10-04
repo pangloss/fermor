@@ -21,6 +21,7 @@
   Element
   (element-id ^KindId [v] (element-id element))
   (get-graph [v] (get-graph element))
+  (exists? [v] (exists? element))
 
   GetDocument
   (get-document [v key] (get-document element key))
@@ -61,6 +62,7 @@
   Element
   (element-id [e] (element-id element))
   (get-graph [e] (get-graph element))
+  (exists? [e] (exists? element))
 
   GetDocument
   (get-document [e] (get-document element))

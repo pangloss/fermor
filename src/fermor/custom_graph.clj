@@ -90,6 +90,7 @@
   (wrap-inline ->vertex-edges-prepared fermor.protocols.VertexEdgesPrepared)
   (wrap-inline ->element-id fermor.protocols.Element)
   (wrap-inline ->get-graph fermor.protocols.Element)
+  (wrap-inline ->exists? fermor.protocols.Element)
   (wrap-inline ->get-document fermor.protocols.GetDocument)
   (wrap-inline ->weight fermor.protocols.WeightedEdge)
   (wrap-inline ->label fermor.protocols.EdgeLabel)
@@ -126,6 +127,7 @@
   Element
   (element-id [v] (-> V+ (->element-id v) element-id))
   (get-graph [v] (-> V+ (->get-graph v) get-graph))
+  (exists? [v] (-> V+ (->exists? v) exists?))
 
   HasDocument
   (has-document? [e]
@@ -182,6 +184,7 @@
   Element
   (element-id [e] (-> E+ (->element-id e) element-id))
   (get-graph [e] (-> E+ (->get-graph e) get-graph))
+  (exists? [e] (-> E+ (->exists? e) exists?))
 
   HasDocument
   (has-document? [e]

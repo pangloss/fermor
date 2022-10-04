@@ -22,7 +22,7 @@
                                add-vertices add-edges set-documents
                                remove-vertices remove-edges remove-documents
                                ;; Element
-                               element-id get-document get-graph
+                               element-id get-document get-graph exists?
                                ;; Edge
                                out-vertex in-vertex
                                ;; Path
@@ -159,11 +159,11 @@
   specific labels."
   ([graph id]
    (if (vertex? id)
-     (-has-vertex? graph (element-id id))
+     (exists? id)
      (-has-vertex? graph id)))
   ([graph id labels]
    (if (vertex? id)
-     (-has-vertex? graph (element-id id) labels)
+     (exists? id)
      (-has-vertex? graph id labels))))
 
 (defn get-vertex!
