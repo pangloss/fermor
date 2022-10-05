@@ -70,6 +70,27 @@
           [(v 'C) (v 'M)] {:loop-num 1, :parent nil, :depth 0}}
         (loop-tree (g/get-vertex cyclic-graph 'X) (f->> (in :to)) (f->> (out :to))))))
 
+(deftest test-loop-depths
+  (is (=
+        {(v 'entry) {:depth 0}
+         (v 'body) {:loop-num 0, :parent nil, :depth 1, :from (v 'head), :to (v 'body)},
+         (v 'body-entry) {:loop-num 0, :parent nil, :depth 1, :from (v 'head), :to (v 'body)},
+         (v 'head) {:loop-num 0, :parent nil, :depth 1, :from (v 'head), :to (v 'body)},
+         (v 'body-result) {:loop-num 0, :parent nil, :depth 1, :from (v 'head), :to (v 'body)},
+         (v 'body-head) {:loop-num 1,
+                         :parent [(v 'head) (v 'body)],
+                         :depth 2,
+                         :from (v 'body-head),
+                         :to (v 'body-body)},
+         (v 'body-body) {:loop-num 1,
+                         :parent [(v 'head) (v 'body)],
+                         :depth 2,
+                         :from (v 'body-head),
+                         :to (v 'body-body)},
+         (v 'result) {:depth 0}}
+
+        (loop-depths (g/get-vertex double-graph 'entry) (f->> (in [:to])) (f->> (out [:to]))))))
+
 (deftest test-postwalk-cyclic
   (is (= '[G D B M E C T X]
         (postwalk (g/get-vertex cyclic-graph 'X) (f->> (out :to)) g/element-id))))

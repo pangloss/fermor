@@ -380,3 +380,27 @@
               (pop cqueue))
             :else
             state))))
+
+(defn non-loop-vertices-between [from to get-successors]
+  (apply into #{}
+    (g/descents #{}
+      (fn [path element]
+        (cond (path element) g/ignore
+              (= element to) g/emit
+              :else g/continue))
+      (fn [path element] (get-successors element))
+      [from])))
+
+(defn loop-depths [entry pred succ]
+  (let [all (postwalk entry succ identity)
+        tree (loop-tree entry pred succ)]
+    (reduce-kv (fn [m [from to] loop-info]
+                 (let [loop-info (-> loop-info
+                                   (update :depth inc)
+                                   (assoc :from from :to to))]
+                   (reduce (fn [m v]
+                             (assoc m v loop-info))
+                     m
+                     (non-loop-vertices-between from to succ))))
+      (zipmap all (repeat (count all) {:depth 0}))
+      tree)))
