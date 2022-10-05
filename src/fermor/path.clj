@@ -322,11 +322,15 @@
       e
       (recur e'))))
 
-(defn path-vertices [path]
-  (filter vertex? path))
+(defn path-vertices
+  "Return only the vertices from a path"
+  [path]
+  (filter vertex? (reverse-path path)))
 
-(defn path-edges [path]
-  (filter edge? path))
+(defn path-edges
+  "Return only the edges from a path"
+  [path]
+  (filter edge? (reverse-path path)))
 
 (defn cyclic-path?
   "Returns any edge that is detected more than once in a path. This does not guarantee that
