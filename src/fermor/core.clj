@@ -229,13 +229,41 @@
 
 (defn with-paths
   "Allow elements to track paths starting from the point this is called. Any
-  element that you traverse to will retain the path that you took to get to it."
-  {:see-also ["with-path" "path" "path?" "no-path" "cyclic-path?"]}
+  element that you traverse to will retain the path that you took to get to it.
+
+  See also:  [[with-paths]] [[paths]] [[reverse-paths]] [[with-path]] [[path]] [[path?]]
+             [[no-path]] [[cyclic-path?]]
+  "
+
+  {:see-also ["paths" "reverse-paths" "with-path" "path" "path?" "no-path" "cyclic-path?"]}
   [r]
   (map with-path r))
 
+(defn reverse-paths
+  "Return an efficient path backward from the current element to every node and
+  edge traversed from the point that [[with-path]] was called on the source
+  element or graph.
+
+  See also:  [[with-paths]] [[paths]] [[reverse-paths]] [[with-path]] [[path]] [[path?]]
+             [[no-path]] [[cyclic-path?]]"
+  [r]
+  (map path r))
+
+(defn paths
+  "Return a path (actually a reversed reverse-path) for each element.
+
+  To get much use from this you must call [[with-paths]] (or equiv)
+  earlier in your traversal at the point you want the path to start.
+
+  Prefer [[reverse-paths]] for traversals which may have extremely long paths.
+
+  See also:  [[with-paths]] [[paths]] [[reverse-paths]] [[with-path]] [[path]] [[path?]]
+             [[no-path]] [[cyclic-path?]]"
+  [r]
+  (map path r))
+
 (defn label
-  "This edge label"
+  "Return the label for this edge"
   [e]
   (-label e))
 

@@ -190,8 +190,8 @@
 (defprotocol Path
   (reverse-path [e] "Get a lazy sequence of the path in reverse.
 
-   For searching within very long paths, this method may be faster than `path.
-   "))
+   Because some paths may be extremely long, the protocol only specifies
+   reverse-path, which can be lazily generated from the vertex at the tail of the path."))
 
 (def ^:private PLinear (:on-interface Linear))
 (def ^:private PForked (:on-interface Forked))

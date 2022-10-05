@@ -258,12 +258,9 @@
    (->VecSubpath [] nil))
   ([e]
    (cond
-     (subpath? e)
-     e
-     (subpath? e)
-     (->ReverseSubpath (reverse-path e) nil)
-     :else
-     (->VecSubpath [e] nil))))
+     (subpath? e) e
+     (path? e) (->ReverseSubpath (reverse-path e) nil)
+     :else (->VecSubpath [e] nil))))
 
 (defn same-path? [a b]
   (= (path a) (path b)))
