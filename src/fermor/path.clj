@@ -47,10 +47,11 @@
 
   HasDocument
   (has-document? [e]
-    (some? (get-document e)))
+    (has-document? element))
 
   GetDocument
-  (get-document [v key] (get-document (.element v) key))
+  (get-document [e]
+    (get-document element))
 
   Wrappable
   (-unwrap [e] (-unwrap (.element e)))
