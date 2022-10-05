@@ -514,7 +514,9 @@
 
 (defn transpose
   "Transpose reverses the direction of all edges in the graph, or creates a new
-  graph with only the selected edge labels, all of which are reversed."
+  graph with only the selected edge labels, all of which are reversed.
+
+  I haven't measured, but I think this operation is linear on nodes+edges."
   ([g]
    (forked (-transpose (linear g))))
   ([g labels]
@@ -542,12 +544,13 @@
    (rsubseq r start-test start-key end-test end-key)))
 
 (defn fast-sort-by
-  "Works like sort-by but creates an intermediate collection so that f is only called once per element.
+  "Works like sort-by but creates an intermediate collection so that f is only
+  called once per element.
 
    Much faster if f has any cost at all."
   [f coll]
   (->> coll
-       (map (juxt f identity))
+       (mapv (juxt f identity))
        (sort-by #(nth % 0))
        (map #(nth % 1))))
 

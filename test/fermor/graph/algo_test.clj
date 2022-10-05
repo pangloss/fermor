@@ -1,6 +1,6 @@
 (ns fermor.graph.algo-test
   (:require [fermor.graph.algo :refer :all]
-            [fermor.core :as g :refer [v]]
+            [fermor.core :as g :refer [v f->> out in]]
             [clojure.test :refer [deftest is testing]]))
 
 ;; NOTE REFERENCES have pictures of the graphs which can be quite helpful.
@@ -18,25 +18,25 @@
 
 (deftest test-postwalk
   (is (= '[D B E C T A]
-        (postwalk (g/get-vertex simple-graph 'A) [:to] g/element-id))))
+        (postwalk (g/get-vertex simple-graph 'A) (f->> (out [:to])) g/element-id))))
 
 (deftest test-reverse-postwalk
   (is (= '[A T C E B D]
-        (reverse-postwalk (g/get-vertex simple-graph 'A) [:to] g/element-id))))
+        (reverse-postwalk (g/get-vertex simple-graph 'A) (f->> (out [:to])) g/element-id))))
 
 (deftest test-postwalk-reduce
   (is (= '["D" "B" "E" "C" "T" "A"]
-        (postwalk-reduce (g/get-vertex simple-graph 'A) [:to] []
+        (postwalk-reduce (g/get-vertex simple-graph 'A) (f->> (out [:to])) []
           (fn [state v]
             (conj state (str (g/element-id v))))))))
 
 (deftest test-reverse-postwalk
   (is (= '[A T C E B D]
-        (reverse-postwalk (g/get-vertex simple-graph 'A) [:to] g/element-id))))
+        (reverse-postwalk (g/get-vertex simple-graph 'A) (f->> (out [:to])) g/element-id))))
 
 (deftest test-reverse-postwalk-reduce
   (is (= ["A" "T" "C" "E" "B" "D"]
-        (reverse-postwalk-reduce (g/get-vertex simple-graph 'A) [:to] []
+        (reverse-postwalk-reduce (g/get-vertex simple-graph 'A) (f->> (out [:to])) []
           (fn [state v] (conj state (str (g/element-id v))))))))
 
 (def cyclic-graph
@@ -49,27 +49,27 @@
 
 (deftest simple-graph-loops
   (is (= {}
-        (loop-tree (g/get-vertex simple-graph 'X) :to)))
+        (loop-tree (g/get-vertex simple-graph 'X) (f->> (in :to)) (f->> (out :to)))))
   (is (= {[(v 'D) (v 'G)] {:loop-num 0, :parent nil, :depth 0},
           [(v 'C) (v 'M)] {:loop-num 1, :parent nil, :depth 0}}
-        (loop-tree (g/get-vertex cyclic-graph 'X) :to))))
+        (loop-tree (g/get-vertex cyclic-graph 'X) (f->> (in :to)) (f->> (out :to))))))
 
 (deftest test-postwalk-cyclic
   (is (= '[G D B M E C T X]
-        (postwalk (g/get-vertex cyclic-graph 'X) :to g/element-id))))
+        (postwalk (g/get-vertex cyclic-graph 'X) (f->> (out :to)) g/element-id))))
 
 (deftest test-reverse-postwalk-cyclic
   (is (= '[X T C E M B D G]
-        (reverse-postwalk (g/get-vertex cyclic-graph 'X) :to g/element-id))))
+        (reverse-postwalk (g/get-vertex cyclic-graph 'X) (f->> (out :to)) g/element-id))))
 
 (deftest test-postwalk-reduce-cyclic
   (is (= ["G" "D" "B" "M" "E" "C" "T" "X"]
-        (postwalk-reduce (g/get-vertex cyclic-graph 'X) [:to] []
+        (postwalk-reduce (g/get-vertex cyclic-graph 'X) (f->> (out [:to])) []
           (fn [state v] (conj state (str (g/element-id v))))))))
 
 (deftest test-reverse-postwalk-reduce-cyclic
   (is (= ["X" "T" "C" "E" "M" "B" "D" "G"]
-        (reverse-postwalk-reduce (g/get-vertex cyclic-graph 'X) [:to] []
+        (reverse-postwalk-reduce (g/get-vertex cyclic-graph 'X) (f->> (out [:to])) []
           (fn [state v] (conj state (str (g/element-id v))))))))
 
 
@@ -82,7 +82,8 @@
           (g/v 'B) (g/v 'X)
           (g/v 'D) (g/v 'X)
           (g/v 'G) (g/v 'D)}
-        (immediate-dominators (g/get-vertex cyclic-graph 'X) [:to]))))
+        (immediate-dominators (g/get-vertex cyclic-graph 'X)
+          (f->> (in [:to])) (f->> (out [:to]))))))
 
 (deftest scc
   (is (= #{#{(g/v 'M) (g/v 'C) (g/v 'E)}
@@ -113,7 +114,7 @@
           (g/v 'B) #{(g/v 'D)},
           (g/v 'D) #{(g/v 'D)},
           (g/v 'G) #{(g/v 'D)}}
-        (dominance-frontiers (g/get-vertex cyclic-graph 'X) [:to]))))
+        (dominance-frontiers (g/get-vertex cyclic-graph 'X) (f->> (in [:to])) (f->> (out [:to]))))))
 
 (def flow-graph
   ;; GRAPHS, p 24
@@ -127,10 +128,10 @@
 
 (deftest flowy
   (is (= '[S C G J F B E H K I A D]
-        (reverse-postwalk (g/get-vertex flow-graph 'S) :to g/element-id)))
+        (reverse-postwalk (g/get-vertex flow-graph 'S) (f->> (out  :to)) g/element-id)))
 
-  (is (= (mapv str (reverse-postwalk (g/get-vertex flow-graph 'S) :to g/element-id))
-        (reverse-postwalk-reduce (g/get-vertex flow-graph 'S) [:to] []
+  (is (= (mapv str (reverse-postwalk (g/get-vertex flow-graph 'S) (f->> (out  :to)) g/element-id))
+        (reverse-postwalk-reduce (g/get-vertex flow-graph 'S) (f->> (out [:to])) []
           (fn [state v] (conj state (str (g/element-id v)))))))
 
   (is (= {(g/v 'H) (g/v 'E),
@@ -145,7 +146,7 @@
           (g/v 'C) (g/v 'S),
           (g/v 'E) (g/v 'B),
           (g/v 'G) (g/v 'C)}
-        (immediate-dominators (g/get-vertex flow-graph 'S) [:to])))
+        (immediate-dominators (g/get-vertex flow-graph 'S) (f->> (in [:to])) (f->> (out [:to])))))
 
   ;; TODO I'm really not sure if this is correct. It seems strange to me that
   ;; K's frontier is only I when it also points up to S and so apparently
@@ -163,7 +164,7 @@
           (g/v 'J) #{}
           (g/v 'K) #{(g/v 'I)}
           (g/v 'S) #{}}
-        (dominance-frontiers (g/get-vertex flow-graph 'S) [:to])))
+        (dominance-frontiers (g/get-vertex flow-graph 'S) (f->> (in [:to])) (f->> (out [:to])))))
 
   (is (= (map set [[(g/v 'I) (g/v 'K) (g/v 'I)]
                    [(g/v 'I) (g/v 'K) (g/v 'S) (g/v 'C) (g/v 'F) (g/v 'I)]
@@ -178,7 +179,7 @@
           ;; NOTE: in the GRAPHS paper on page 35 it shows H and E as separate
           ;; intervals, so this may be wrong.
           #{(g/v 'H) (g/v 'E)}]
-        (intervals (g/get-vertex flow-graph 'S) [:to])))
+        (intervals (g/get-vertex flow-graph 'S) (f->> (in [:to])) (f->> (out [:to])))))
 
   ;; This one is strange because I would expect K->I to be inside S->K, but
   ;; because the graph is irreducible and K->I is weirdly looping in the tail of
@@ -188,7 +189,7 @@
   (is (= {[(v 'S) (v 'K)] {:loop-num 0, :parent nil, :depth 0},
           [(v 'E) (v 'H)] {:loop-num 1, :parent [(v 'S) (v 'K)], :depth 1},
           [(v 'K) (v 'I)] {:loop-num 2, :parent nil, :depth 0}}
-        (loop-tree (g/get-vertex flow-graph 'S) [:to]))))
+        (loop-tree (g/get-vertex flow-graph 'S) (f->> (in [:to])) (f->> (out [:to]))))))
 
 (def irreducible-graph
   ;; Example from the DOM paper
@@ -207,13 +208,13 @@
           (g/v 3) (g/v 5)
           (g/v 2) (g/v 5)
           (g/v 1) (g/v 5)}
-        (immediate-dominators (g/get-vertex irreducible-graph 5) [:to])))
+        (immediate-dominators (g/get-vertex irreducible-graph 5) (f->> (in [:to])) (f->> (out [:to])))))
 
   (is (= [[(g/v 1) (g/v 2) (g/v 1)]]
         (cycles irreducible-graph :to)))
 
   (is (= {[(v 2) (v 1)] {:loop-num 0, :parent nil, :depth 0}}
-        (loop-tree (g/get-vertex irreducible-graph 5) [:to]))))
+        (loop-tree (g/get-vertex irreducible-graph 5) (f->> (in [:to])) (f->> (out [:to]))))))
 
 (def flow-graph2
   ;; page 41 of GRAPHS
@@ -244,7 +245,7 @@
          (g/v 'P) (g/v 'O) ;; ok
          (g/v 'Q) (g/v 'P) ;; ok
          (g/v 'S) (g/v 'S)} ;; ok
-        (immediate-dominators (g/get-vertex flow-graph2 'S) [:to]))
+        (immediate-dominators (g/get-vertex flow-graph2 'S) (f->> (in [:to])) (f->> (out [:to]))))
     "Dominators on p42 of GRAPHS")
 
 
@@ -256,7 +257,7 @@
           #{(g/v 'O)}
           #{(g/v 'Q) (g/v 'P)}
           #{(g/v 'K) (g/v 'J)}]
-        (intervals (g/get-vertex flow-graph2 'S) [:to]))
+        (intervals (g/get-vertex flow-graph2 'S) (f->> (in [:to])) (f->> (out [:to]))))
     "Intervals on p45 of GRAPHS")
 
   ;; this graph is really tricky. It's hard to be certain that this is correct, but
@@ -271,7 +272,7 @@
           [(v 'J) (v 'K)] {:loop-num 7 :parent [(v 'L) (v 'M)] :depth 6}
           [(v 'O) (v 'P)] {:loop-num 8 :parent [(v 'F) (v 'I)] :depth 4}
           [(v 'P) (v 'Q)] {:loop-num 9 :parent [(v 'F) (v 'I)] :depth 4}}
-        (loop-tree (g/get-vertex flow-graph2 'S) [:to]))))
+        (loop-tree (g/get-vertex flow-graph2 'S) (f->> (in [:to])) (f->> (out [:to]))))))
 
 (def loops-graph
   (g/forked (g/add-edges (g/graph) :to
@@ -291,10 +292,10 @@
           (g/v 5) (g/v 4),
           (g/v 10) (g/v 8),
           (g/v 8) (g/v 7)}
-        (immediate-dominators (g/get-vertex loops-graph 1) :to)))
+        (immediate-dominators (g/get-vertex loops-graph 1) (f->> (in [:to])) (f->> (out  :to)))))
 
   (is (= (range 10)
-        (->> (reverse-post-order-numbering (g/get-vertex loops-graph 1) :to)
+        (->> (reverse-post-order-numbering (g/get-vertex loops-graph 1) (f->> (out  :to)))
           vals
           sort))
     "this had a bug where a node appeared twice in the traversal, throwing the numbering out.")
@@ -314,4 +315,4 @@
           {:loop-num 4,
            :parent [(v 3) (v 8)],
            :depth 2,}}
-        (loop-tree (g/get-vertex loops-graph 1) :to))))
+        (loop-tree (g/get-vertex loops-graph 1) (f->> (in [:to])) (f->> (out  :to))))))

@@ -114,14 +114,16 @@
 (defn postwalk
   "Algo via Eli Bendersky
 
-  https://eli.thegreenplace.net/2015/directed-graph-traversal-orderings-and-applications-to-data-flow-analysis/"
-  [entry-node labels f]
+  https://eli.thegreenplace.net/2015/directed-graph-traversal-orderings-and-applications-to-data-flow-analysis/
+
+  get-successors is a function like (f->> (out [:x])) that returns successor nodes."
+  [entry-node get-successors f]
   (let [seen (volatile! #{})]
     (letfn [(descend [v]
               (when-not (@seen v)
                 (vswap! seen conj v)
                 (concat
-                  (mapcat descend (g/out labels v))
+                  (mapcat descend (get-successors v))
                   [(f v)])))]
       (descend entry-node))))
 
@@ -130,8 +132,8 @@
   visited before any of their descendents.
 
   See also [[postwalk]] and [[reverse-postwalk-reduce]]."
-  [entry-node labels f]
-  (let [vs (postwalk entry-node labels identity)]
+  [entry-node get-successors f]
+  (let [vs (postwalk entry-node get-successors identity)]
     (map f (reverse vs))))
 
 (defn postwalk-reduce
@@ -139,11 +141,11 @@
 
   Each element calls (f accumulator v). The return value of the callback is the
   accumulator for the next element."
-  [entry-node labels state f]
+  [entry-node get-successors state f]
   (let [seen (volatile! #{})]
     (letfn [(descend [state v]
               (vswap! seen conj v)
-              (loop [[child & children] (g/out labels v)
+              (loop [[child & children] (get-successors v)
                      state state]
                 (if (reduced? state)
                   (unreduced state)
@@ -160,11 +162,11 @@
 
   Each element calls (f accumulator v). The return value of the callback is the
   accumulator for the next element."
-  [entry-node labels state f]
+  [entry-node get-successors state f]
   (let [seen (volatile! #{})]
     (letfn [(descend [state v]
               (vswap! seen conj v)
-              (loop [[child & children] (g/out labels v)
+              (loop [[child & children] (get-successors v)
                      state (f state v)]
                 (if (reduced? state)
                   (unreduced state) ;; early exit
@@ -181,8 +183,8 @@
 
   Each element calls (f accumulator v). The return value of the callback is the
   accumulator for the next element."
-  [entry-node labels state f]
-  (let [vs (postwalk entry-node labels identity)]
+  [entry-node get-successors state f]
+  (let [vs (postwalk entry-node get-successors identity)]
     (reduce f state (reverse vs))))
 
 (defn reverse-post-order-numbering
@@ -191,16 +193,16 @@
   Since RPO is a topological sort, this can be used to tsort nodes in a subgraph.
 
   See also [[reverse-postwalk]]"
-  [entry-node labels]
-  (zipmap (reverse-postwalk entry-node labels identity)
+  [entry-node get-successors]
+  (zipmap (reverse-postwalk entry-node get-successors identity)
     (range)))
 
 (defn post-order-numbering
   "Return a map from node to its order in PO traversal.
 
   See also [[postwalk]] in this namespace."
-  [entry-node labels]
-  (zipmap (postwalk entry-node labels identity)
+  [entry-node get-successors]
+  (zipmap (postwalk entry-node get-successors identity)
     (range)))
 
 (defn- idom-intersect [blocknum]
@@ -220,15 +222,15 @@
   "Return a map of immediate dominators.
 
   Based upon \"A Simple, Fast Dominance Agorithm\" by Cooper, Harvey and Kennedy"
-  [entry-node labels]
-  (let [intersect (idom-intersect (post-order-numbering entry-node labels))]
+  [entry-node get-predecessors get-successors]
+  (let [intersect (idom-intersect (post-order-numbering entry-node get-successors))]
     (loop [doms {entry-node entry-node}]
       (prn doms)
-      (let [doms' (reverse-postwalk-reduce entry-node labels doms
+      (let [doms' (reverse-postwalk-reduce entry-node get-successors doms
                     (fn [doms v]
                       (if (= entry-node v)
                         doms
-                        (let [preds (g/in labels v)
+                        (let [preds (get-predecessors v)
                               new-idom (first (filter doms preds))
                               new-idom
                               (reduce (fn [new-idom pred]
@@ -247,11 +249,11 @@
   "Calculate dominance frontiers of the subgraph originating at entry-node.
 
   This is a bonus algo on page 9 of the paper I got the [[immediate-dominators]] algo from."
-  [entry-node labels]
-  (let [doms (immediate-dominators entry-node labels)
+  [entry-node get-predecessors get-successors]
+  (let [doms (immediate-dominators entry-node get-predecessors get-successors)
         frontiers (zipmap (keys doms) (repeat #{}))]
     (reduce (fn [frontiers b]
-              (let [preds (g/in labels b)]
+              (let [preds (get-predecessors b)]
                 (if (next preds) ;; |preds| >= 2
                   (reduce (fn [frontiers p]
                             (loop [runner p
@@ -265,13 +267,14 @@
       frontiers
       (keys doms))))
 
-(defn- pre-interval [selected h labels]
+(defn- pre-interval [selected h
+                     get-predecessors get-successors]
   (loop [A #{h}
          xform  nil
          worklist [h]]
     (if xform
       (if-let [node (first worklist)]
-        (if-let [m (first (into [] xform (g/out labels node)))]
+        (if-let [m (first (into [] xform (get-successors node)))]
           (recur (conj A m) nil (conj worklist m))
           (recur A xform (subvec worklist 1)))
         A)
@@ -279,34 +282,34 @@
         (comp
           (remove selected)
           (remove A)
-          (filter (fn [m] (every? A (g/in labels m))))
+          (filter (fn [m] (every? A (get-predecessors m))))
           (take 1))
         worklist))))
 
 (defn intervals
   "Return a list of intervals in the graph."
-  [entry-node labels]
+  [entry-node get-predecessors get-successors]
   (loop [workset #{entry-node}
          selected #{}
          intervals []]
     (if-let [h (first workset)]
-      (let [interval (pre-interval selected h labels)
+      (let [interval (pre-interval selected h get-predecessors get-successors)
             selected (into selected interval)]
         (recur
           (into (disj workset h)
             (remove selected)
-            (g/out labels (seq selected)))
+            (get-successors (seq selected)))
           selected
           (conj intervals interval)))
       intervals)))
 
 
-(defn loop-tree [entry-node labels]
-  (let [n (reverse-post-order-numbering entry-node labels)]
+(defn loop-tree [entry-node get-predecessors get-successors]
+  (let [n (reverse-post-order-numbering entry-node get-successors)]
     (:loops
-     (prewalk-reduce entry-node labels {:active-loops {}
-                                        :nesting []
-                                        :loops {}}
+     (prewalk-reduce entry-node get-successors {:active-loops {}
+                                                :nesting []
+                                                :loops {}}
        (fn [acc head]
          (let [ending-loop (get-in acc [:active-loops head])
                acc (if ending-loop
@@ -314,7 +317,7 @@
                        (update :active-loops dissoc head)
                        (update :nesting #(into [] (remove #{ending-loop}) %)))
                      acc)]
-           (->> (g/in labels head)
+           (->> (get-predecessors head)
              (filter (fn [tail] (< (n head) (n tail))))
              (sort-by (fn [tail] (- (n tail))))
              (reduce (fn [acc tail]
