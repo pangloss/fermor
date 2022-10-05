@@ -99,8 +99,9 @@
   (meta [o] metadata)
 
   Element
-  (element-id [e] (element-id (.element e)))
-  (get-graph [e] (get-graph (.element e)))
+  (element-id [e] (element-id element))
+  (get-graph [e] (get-graph element))
+  (exists? [e] (exists? element))
 
   HasDocument
   (has-document? [e]
