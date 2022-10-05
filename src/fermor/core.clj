@@ -888,12 +888,11 @@
   "Descents is a variant of descend which returns the entire descent
   path as a vector rather than just the resulting element.
 
-   Note that the descent path is not the same as using with-path to produce
+  Note that the descent path is not the same as using with-path to produce
   proper paths. The descent path only includes the actual elements that are
   passed into the children function in the course of operation.
 
-   Please see `descend` for details. In descents, the initial path is not optional
-  and must be a vector."
+  Please see `descend` for details. In descents, the initial path is not optional."
   {:see-also ["descend" "all" "deepest" "all-paths" "deepest-paths"]}
   ([path children coll]
    (lazy-seq (extrude (*descents path children coll))))

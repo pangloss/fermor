@@ -42,7 +42,7 @@
      (let [[emit children siblings reset-path] (control path e)
            results (when children
                      (ensure-seq (f path e)))
-           path (when-not (nil? path) (if reset-path [] path))]
+           path (when-not (nil? path) (if reset-path (empty path) path))]
 
        (case [(boolean emit) (boolean children) (boolean siblings)]
 
@@ -94,7 +94,7 @@
      (let [[emit children siblings reset-path] (control path e)
            results (when children
                      (ensure-seq (f path e)))
-           path (if reset-path [] path)
+           path (if reset-path (empty path) path)
            e-path (conj path e)]
 
        (case [(boolean emit) (boolean children) (boolean siblings)]

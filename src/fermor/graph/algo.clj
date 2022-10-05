@@ -1,7 +1,8 @@
 (ns fermor.graph.algo
   (:require [fermor.protocols :refer [get-vertex element-id vertex?]]
             [fermor.graph :as fg :refer [edge-graph]]
-            [fermor.core :as g])
+            [fermor.core :as g]
+            [pure-conditioning :refer [condition error]])
   (:import (io.lacuna.bifurcan Graphs LinearList)
            (java.util.function Predicate ToDoubleFunction)
            (java.util Optional)
@@ -303,9 +304,15 @@
           (conj intervals interval)))
       intervals)))
 
+(defn loop-tree
+  "Returns a map of loop head and tail to loop details.
 
-(defn loop-tree [entry-node get-predecessors get-successors]
-  (let [n (reverse-post-order-numbering entry-node get-successors)]
+      {[loop-head loop-tail] {:loop-num n :parent [lh lt] :depth n} ...}"
+  [entry-node get-predecessors get-successors]
+  (let [nums (reverse-post-order-numbering entry-node get-successors)
+        n (fn [v]
+            (or (nums v)
+              (condition :node-not-numbered {:nums nums :node v})))]
     (:loops
      (prewalk-reduce entry-node get-successors {:active-loops {}
                                                 :nesting []
@@ -317,18 +324,19 @@
                        (update :active-loops dissoc head)
                        (update :nesting #(into [] (remove #{ending-loop}) %)))
                      acc)]
-           (->> (get-predecessors head)
-             (filter (fn [tail] (< (n head) (n tail))))
-             (sort-by (fn [tail] (- (n tail))))
-             (reduce (fn [acc tail]
-                       (let [nesting (vec (vals (:active-loops acc)))]
-                         (-> acc
-                           (update :loops assoc [head tail] {:loop-num (count (:loops acc))
-                                                             :parent (last (:nesting acc))
-                                                             :depth (count (:nesting acc))})
-                           (update :active-loops assoc tail [head tail])
-                           (update :nesting conj [head tail]))))
-               acc))))))))
+           (reduce (fn [acc tail]
+                     (let [nesting (vec (vals (:active-loops acc)))]
+                       (-> acc
+                         (update :loops assoc [head tail] {:loop-num (count (:loops acc))
+                                                           :parent (last (:nesting acc))
+                                                           :depth (count (:nesting acc))})
+                         (update :active-loops assoc tail [head tail])
+                         (update :nesting conj [head tail]))))
+             acc
+             (->> (get-predecessors head)
+               (filter (fn after-head [tail] (< (n head) (n tail))))
+               (sort-by (fn deepest-first [tail] (- (n tail))))))))))))
+
 
 (defn breadth-first-nodes [children r]
   (let [rf (if (fn? children) children (partial g/out children))]

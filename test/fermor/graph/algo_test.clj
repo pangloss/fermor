@@ -46,10 +46,26 @@
       '[[X T] [X B] [X C] [T B] [B D] [C E]
         [E D] [E M] [M C] [D G] [G D]])))
 
+(def p46-graph
+  (g/add-edges (g/graph) :to
+    '[[entry head] [head body] [body head] [head result]]))
+
+(def double-graph
+  (g/add-edges (g/graph) :to
+    '[[entry head] [head body-entry] [body-result body] [body head] [head result]
+      [body-entry body-head] [body-head body-body] [body-body body-head] [body-head body-result]]))
 
 (deftest simple-graph-loops
   (is (= {}
         (loop-tree (g/get-vertex simple-graph 'X) (f->> (in :to)) (f->> (out :to)))))
+
+  (is (= {[(v 'head) (v 'body)] {:loop-num 0, :parent nil, :depth 0},}
+        (loop-tree (g/get-vertex p46-graph 'entry) (f->> (in [:to])) (f->> (out [:to])))))
+
+  (is (= {[(v 'head) (v 'body)] {:loop-num 0, :parent nil, :depth 0}
+          [(v 'body-head) (v 'body-body)] {:loop-num 1 :parent [(v 'head) (v 'body)] :depth 1}}
+        (loop-tree (g/get-vertex double-graph 'entry) (f->> (in [:to])) (f->> (out [:to])))))
+
   (is (= {[(v 'D) (v 'G)] {:loop-num 0, :parent nil, :depth 0},
           [(v 'C) (v 'M)] {:loop-num 1, :parent nil, :depth 0}}
         (loop-tree (g/get-vertex cyclic-graph 'X) (f->> (in :to)) (f->> (out :to))))))
