@@ -207,52 +207,52 @@
 (defn graph?
   "Returns true if x is a graph."
   [x]
-  (and x (.isAssignableFrom PGraph (class x))))
+  (and (some? x) (.isAssignableFrom PGraph (class x))))
 
 (defn linear?
   "Returns true if x is a linear graph."
   [x]
-  (and x (.isAssignableFrom PLinear (class x))))
+  (and (some? x) (.isAssignableFrom PLinear (class x))))
 
 (defn forked?
   "Returns true if x is a forked graph."
   [x]
-  (and x (.isAssignableFrom PForked (class x))))
+  (and (some? x) (.isAssignableFrom PForked (class x))))
 
 (defn vertex?
   "Returns true if x is a vertex."
   [x]
-  (and x (.isAssignableFrom PVertex (class x))))
+  (and (some? x) (.isAssignableFrom PVertex (class x))))
 
 (defn edge?
   "Returns true if x is an edge."
   [x]
-  (and x (.isAssignableFrom PEdge (class x))))
+  (and (some? x) (.isAssignableFrom PEdge (class x))))
 
 (defn element?
   "Returns true if x is either a vertex or an edge."
   [x]
-  (and x (.isAssignableFrom PElement (class x))))
+  (and (some? x) (.isAssignableFrom PElement (class x))))
 
 (defn path?
   "Returns true if x is a path."
   [x]
-  (and x (.isAssignableFrom PPath (class x))))
+  (and (some? x) (.isAssignableFrom PPath (class x))))
 
 (defn subpath?
   "Returns true if x is a subpath."
   [x]
-  (and x (.isAssignableFrom PSubpath (class x))))
+  (and (some? x) (.isAssignableFrom PSubpath (class x))))
 
 (defn wrappable?
   "Returns true if x is wrappable."
   [x]
-  (and x (.isAssignableFrom PWrappable (class x))))
+  (and (some? x) (.isAssignableFrom PWrappable (class x))))
 
 (defn graph-settings?
   "Returns true if x is wrappable."
   [x]
-  (and x (.isAssignableFrom PGraphSettings (class x))))
+  (and (some? x) (.isAssignableFrom PGraphSettings (class x))))
 
 (extend-type Object
   Wrappable

@@ -161,8 +161,8 @@
 
 (deftype ReverseSubpath [rpath metadata]
   Object
-  (equals [a b] (when (path? b)
-                  (= (reverse-path a) (reverse-path b))))
+  (equals [a b]
+    (identical? a b))
   (hashCode [e] (.hashCode (reverse-path e)))
 
   clojure.lang.IObj
@@ -198,8 +198,9 @@
 
 (deftype VecSubpath [^clojure.lang.IPersistentVector path metadata]
   Object
-  (equals [a b] (when (path? b)
-                  (= (reverse-path a) (reverse-path b))))
+  (equals [a b] #_(when (path? b)
+                    (= (reverse-path a) (reverse-path b)))
+    (identical? a b))
   (hashCode [e] (.hashCode (reverse-path e)))
 
   clojure.lang.IObj
