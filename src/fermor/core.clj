@@ -203,10 +203,16 @@
     [x]))
 
 (defn vertices
-  "Return all vertices or all vertices associated with edges that have the given labels in the graph."
+  "Return all vertices or all vertices associated with edges that have the given
+  labels in the graph."
   ([g] (all-vertices g))
   ([g labels]
    (distinct (mapcat #(vertices-with-edge g %) (ensure-seq labels)))))
+
+(defn edges
+  "Return all edges or all edges that have the given labels in the graph."
+  ([g] (all-edges g))
+  ([g labels] (all-edges g labels)))
 
 (defn unwrap
   "Recursively unwrap any element or just return the input if it's not wrapped"
