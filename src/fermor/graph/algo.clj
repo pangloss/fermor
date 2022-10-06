@@ -222,6 +222,9 @@
 (defn immediate-dominators
   "Return a map of immediate dominators.
 
+  This structure is effectively a tree because each node points to the node
+  higher in the tree (or itself for the root node).
+
   Based upon \"A Simple, Fast Dominance Agorithm\" by Cooper, Harvey and Kennedy"
   [entry-node get-predecessors get-successors]
   (let [intersect (idom-intersect (post-order-numbering entry-node get-successors))]
@@ -244,6 +247,28 @@
         (if (= doms doms')
           doms
           (recur doms'))))))
+
+(defn dominator-depth
+  "Returns how many steps through the map it takes to get to the entry node.
+
+  See also [[immediate-dominators]]."
+  [entry-node get-predecessors get-successors]
+  (loop [tree (immediate-dominators entry-node get-predecessors get-successors)
+         result {}
+         nodes (keys tree)
+         node nil
+         cursor nil
+         depth 0]
+    (if cursor
+      (if (= cursor entry-node)
+        (recur tree (assoc result node depth) nodes nil nil 0)
+        (let [dominator (tree cursor)]
+          (if (= cursor dominator)
+            (recur tree (assoc result node :unknown) nodes nil nil 0)
+            (recur tree result nodes node dominator (inc depth)))))
+      (if (seq nodes)
+        (recur tree result (rest nodes) (first nodes) (first nodes) depth)
+        result))))
 
 
 (defn dominance-frontiers
