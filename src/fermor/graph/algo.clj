@@ -251,23 +251,25 @@
   "Returns how many steps through the map it takes to get to the entry node.
 
   See also [[immediate-dominators]]."
-  [entry-node get-predecessors get-successors]
-  (loop [tree (immediate-dominators entry-node get-predecessors get-successors)
-         result {}
-         nodes (keys tree)
-         node nil
-         cursor nil
-         depth 0]
-    (if cursor
-      (if (= cursor entry-node)
-        (recur tree (assoc result node depth) nodes nil nil 0)
-        (let [dominator (tree cursor)]
-          (if (= cursor dominator)
-            (recur tree (assoc result node :unknown) nodes nil nil 0)
-            (recur tree result nodes node dominator (inc depth)))))
-      (if (seq nodes)
-        (recur tree result (rest nodes) (first nodes) (first nodes) depth)
-        result))))
+  ([entry-node get-predecessors get-successors]
+   (dominator-depth entry-node
+     (immediate-dominators entry-node get-predecessors get-successors)))
+  ([entry-node imm-doms]
+   (loop [result {}
+          nodes (keys imm-doms)
+          node nil
+          cursor nil
+          depth 0]
+     (if cursor
+       (if (= cursor entry-node)
+         (recur (assoc result node depth) nodes nil nil 0)
+         (let [dominator (imm-doms cursor)]
+           (if (= cursor dominator)
+             (recur (assoc result node :unknown) nodes nil nil 0)
+             (recur result nodes node dominator (inc depth)))))
+       (if (seq nodes)
+         (recur result (rest nodes) (first nodes) (first nodes) depth)
+         result)))))
 
 
 (defn dominance-frontiers
