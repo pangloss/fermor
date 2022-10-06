@@ -130,6 +130,20 @@
      (add-vertex id document)
      (get-vertex id))))
 
+(defn remove-vertex
+  "Delete the given vertex"
+  [g v]
+  (if v
+    (remove-vertices g [v])
+    g))
+
+
+(defn remove-vertex!
+  "Delete the given vertex"
+  [v]
+  (when v (remove-vertices (get-graph v) [v]))
+  nil)
+
 (defn add-vertices!
   "The same as add-vertices, but returns the created vertices instead of
   returning the graph.
