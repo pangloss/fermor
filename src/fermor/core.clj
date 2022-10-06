@@ -1310,13 +1310,13 @@
   ([coll]
    (persistent!
     (reduce (fn [r [k count]]
-              (assoc! r count (conj (get r count []) k)))
+              (assoc! r count (conj (get r count #{}) k)))
             (transient {})
             (group-count coll))))
   ([f coll]
    (persistent!
     (reduce (fn [r [k count]]
-              (assoc! r count (conj (get r count []) k)))
+              (assoc! r count (conj (get r count #{}) k)))
             (transient {})
             (group-count f coll)))))
 
@@ -1325,12 +1325,12 @@
   {:see-also ["group-by-count" "group-by-count>1"]}
   ([coll]
    (reduce (fn [r [k count]]
-             (assoc r count (conj (get r count []) k)))
+             (assoc r count (conj (get r count #{}) k)))
            (sorted-map)
            (group-count coll)))
   ([f coll]
    (reduce (fn [r [k count]]
-             (assoc r count (conj (get r count []) k)))
+             (assoc r count (conj (get r count #{}) k)))
            (sorted-map)
            (group-count f coll))))
 
@@ -1342,7 +1342,7 @@
     (reduce (fn [r [k count]]
               (if (= 1 count)
                 r
-                (assoc! r count (conj (get r count []) k))))
+                (assoc! r count (conj (get r count #{}) k))))
             (transient {})
             (group-count coll))))
   ([f coll]
@@ -1350,7 +1350,7 @@
     (reduce (fn [r [k count]]
               (if (= 1 count)
                 r
-                (assoc! r count (conj (get r count []) k))))
+                (assoc! r count (conj (get r count #{}) k))))
             (transient {})
             (group-count f coll)))))
 
