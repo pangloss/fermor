@@ -70,7 +70,7 @@
           [(v 'C) (v 'M)] {:loop-num 1, :parent nil, :depth 0}}
         (loop-tree (g/get-vertex cyclic-graph 'X) (f->> (in :to)) (f->> (out :to))))))
 
-(deftest test-loop-depths
+(deftest test-loop-info
   (is (=
         {(v 'entry) {:depth 0}
          (v 'body) {:loop-num 0, :parent nil, :depth 1, :from (v 'head), :to (v 'body)},
@@ -89,7 +89,7 @@
                          :to (v 'body-body)},
          (v 'result) {:depth 0}}
 
-        (loop-depths (g/get-vertex double-graph 'entry) (f->> (in [:to])) (f->> (out [:to]))))))
+        (loop-info (g/get-vertex double-graph 'entry) (f->> (in [:to])) (f->> (out [:to]))))))
 
 (deftest test-postwalk-cyclic
   (is (= '[G D B M E C T X]

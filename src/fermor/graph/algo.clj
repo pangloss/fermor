@@ -307,7 +307,9 @@
 (defn loop-tree
   "Returns a map of loop head and tail to loop details.
 
-      {[loop-head loop-tail] {:loop-num n :parent [lh lt] :depth n} ...}"
+      {[loop-head loop-tail] {:loop-num n :parent [lh lt] :depth n} ...}
+
+  See also [[loop-info]] for a possibly more useful result set based on this algo."
   [entry-node get-predecessors get-successors]
   (let [nums (reverse-post-order-numbering entry-node get-successors)
         n (fn [v]
@@ -338,48 +340,46 @@
                (sort-by (fn deepest-first [tail] (- (n tail))))))))))))
 
 
-(defn breadth-first-nodes [children r]
-  (let [rf (if (fn? children) children (partial g/out children))]
-    ;; TODO: make this a lazy seq
-    (loop [ret []
-           seen #{}
-           queue clojure.lang.PersistentQueue/EMPTY
-           cqueue (if (g/vertex? r)
-                    (conj clojure.lang.PersistentQueue/EMPTY (delay [r]))
-                    (into clojure.lang.PersistentQueue/EMPTY (delay r)))]
-      (cond (seq queue)
-            (let [node (peek queue)]
-              (recur (conj ret node) seen (pop queue) (conj cqueue (delay (rf node)))))
-            (seq cqueue)
-            (recur ret
-              (into seen @(peek cqueue))
-              (into queue (comp (remove seen) (distinct)) @(peek cqueue))
-              (pop cqueue))
-            :else
-            ret))))
+(defn breadth-first-nodes [get-successors r]
+  ;; TODO: make this a lazy seq
+  (loop [ret []
+         seen #{}
+         queue clojure.lang.PersistentQueue/EMPTY
+         cqueue (if (g/vertex? r)
+                  (conj clojure.lang.PersistentQueue/EMPTY (delay [r]))
+                  (into clojure.lang.PersistentQueue/EMPTY (delay r)))]
+    (cond (seq queue)
+          (let [node (peek queue)]
+            (recur (conj ret node) seen (pop queue) (conj cqueue (delay (get-successors node)))))
+          (seq cqueue)
+          (recur ret
+            (into seen @(peek cqueue))
+            (into queue (comp (remove seen) (distinct)) @(peek cqueue))
+            (pop cqueue))
+          :else
+          ret)))
 
 (defn breadth-first-reduce
-  [f init children r]
-  (let [rf (if (fn? children) children (partial g/out children))]
-    (loop [state init
-           seen #{}
-           queue clojure.lang.PersistentQueue/EMPTY
-           cqueue (if (g/vertex? r)
-                    (conj clojure.lang.PersistentQueue/EMPTY (delay [r]))
-                    (into clojure.lang.PersistentQueue/EMPTY (delay r)))]
-      (cond (seq queue)
-            (let [node (peek queue)
-                  state (f state node)]
-              (if (reduced? state)
-                (unreduced state)
-                (recur state seen (pop queue) (conj cqueue (delay (rf node))))))
-            (seq cqueue)
-            (recur state
-              (into seen @(peek cqueue))
-              (into queue (comp (remove seen) (distinct)) @(peek cqueue))
-              (pop cqueue))
-            :else
-            state))))
+  [f init get-successors r]
+  (loop [state init
+         seen #{}
+         queue clojure.lang.PersistentQueue/EMPTY
+         cqueue (if (g/vertex? r)
+                  (conj clojure.lang.PersistentQueue/EMPTY (delay [r]))
+                  (into clojure.lang.PersistentQueue/EMPTY (delay r)))]
+    (cond (seq queue)
+          (let [node (peek queue)
+                state (f state node)]
+            (if (reduced? state)
+              (unreduced state)
+              (recur state seen (pop queue) (conj cqueue (delay (get-successors node))))))
+          (seq cqueue)
+          (recur state
+            (into seen @(peek cqueue))
+            (into queue (comp (remove seen) (distinct)) @(peek cqueue))
+            (pop cqueue))
+          :else
+          state)))
 
 (defn non-loop-vertices-between [from to get-successors]
   (apply into #{}
@@ -391,7 +391,11 @@
       (fn [path element] (get-successors element))
       [from])))
 
-(defn loop-depths [entry pred succ]
+(defn loop-info
+  "Return a map from every vertex to its loop information.
+
+  See also [[loop-tree]]."
+  [entry pred succ]
   (let [all (postwalk entry succ identity)
         tree (loop-tree entry pred succ)]
     (reduce-kv (fn [m [from to] loop-info]
