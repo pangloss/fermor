@@ -229,7 +229,6 @@
   [entry-node get-predecessors get-successors]
   (let [intersect (idom-intersect (post-order-numbering entry-node get-successors))]
     (loop [doms {entry-node entry-node}]
-      (prn doms)
       (let [doms' (reverse-postwalk-reduce entry-node get-successors doms
                     (fn [doms v]
                       (if (= entry-node v)
