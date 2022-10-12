@@ -18,7 +18,11 @@
   (implementor-type ^Class [w])
   (make-implementor [w]))
 
-(deftype Wrapper [settings t -> ^:unsynchronized-mutable F ^:unsynchronized-mutable L ^:unsynchronized-mutable V ^:unsynchronized-mutable E]
+(deftype Wrapper [settings t ->
+                  ^:unsynchronized-mutable F
+                  ^:unsynchronized-mutable L
+                  ^:unsynchronized-mutable V
+                  ^:unsynchronized-mutable E]
   IWrapper
   (-wrapper-settings [w] settings)
   (set-F! [w f] (set! F f))
