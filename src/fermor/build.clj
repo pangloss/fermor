@@ -1,7 +1,7 @@
 (ns fermor.build
   (:require [fermor.protocols :as p]
             [fermor.graph :as graph])
-  (:import fermor.graph.IEdgeGraphs
+  (:import (fermor.graph IEdgeGraphs IGraphData)
            (io.lacuna.bifurcan DirectedGraph DirectedAcyclicGraph IGraph IEdge)))
 
 (defprotocol ResetGraph
@@ -49,13 +49,17 @@
   p/Wrappable
   (-unwrap [g] (p/-unwrap @ga))
 
+  ;; we're both linear and forked :D
+  p/Linear
+  p/Forked
+
   p/ToLinear
   (to-linear [g]
-    (graph/linear @ga))
+    (p/to-linear @ga))
 
   p/ToForked
   (to-forked [g]
-    (graph/forked @ga))
+    (p/to-forked @ga))
 
   ResetGraph
   (-reset-graph [builder g]
@@ -73,6 +77,12 @@
   (_addEdgeGraph ^ILabelGraphs [g label ^IGraph edge]
     (mutate lg
       (._addEdgeGraph lg label edge)))
+
+  IGraphData
+  (_getDocuments ^IMap [g]
+    (._getDocuments @ga))
+  (_getEdges ^IMap [g]
+    (._getEdges @ga))
 
   p/GraphTranspose
   (-transpose [g]
@@ -95,7 +105,7 @@
   p/AddVertices
   (add-vertices [g id-document-pairs]
     (mutate lg
-      (p/add-vertices g id-document-pairs)))
+      (p/add-vertices lg id-document-pairs)))
 
   p/RemoveEdges
   (remove-edges [g es]

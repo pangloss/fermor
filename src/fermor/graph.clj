@@ -60,6 +60,16 @@
   (_getDocument ^java.util.Optional [])
   (_setDocument ^IDocumentCache [^java.util.Optional p]))
 
+(definterface IGraphData
+  (_getDocuments ^IMap [])
+  (_getEdges ^IMap []))
+
+(defn ^IMap -documents [^IGraphData g]
+  (._getDocuments g))
+
+(defn ^IMap -edges [^IGraphData g]
+  (._getEdges g))
+
 (defn remove-all-edges
   "Remove all edges with the given label from the graph."
   [^IEdgeGraphs g label]
@@ -135,6 +145,12 @@
     (do (.put edges label edge)
         g))
 
+  IGraphData
+  (_getDocuments ^IMap [g]
+    documents)
+  (_getEdges ^IMap [g]
+    edges)
+
   GraphTranspose
   (-transpose [g]
     (-transpose g (._getLabels g)))
@@ -149,9 +165,9 @@
       documents settings nil))
 
   AddEdges
-  (add-edges ^LinearGraph [^LinearGraph graph label pairs-or-triples]
+  (add-edges [graph label pairs-or-triples]
     (-add-edges graph label pairs-or-triples))
-  (add-edges ^LinearGraph [^LinearGraph graph label edge-type pairs-or-triples]
+  (add-edges [graph label edge-type pairs-or-triples]
     (-add-edges graph label edge-type pairs-or-triples))
 
   AddVertices
@@ -366,8 +382,8 @@
   g)
 
 (defn- -forked-set-documents [g element-document-pairs]
-  (forked
-   (set-documents (linear g)
+  (to-forked
+   (set-documents (to-linear g)
                   element-document-pairs)))
 
 (deftype ForkedGraph [^IMap edges ^IMap documents settings metadata]
@@ -380,6 +396,12 @@
     (if (= m metadata)
       o
       (->ForkedGraph edges documents settings m)))
+
+  IGraphData
+  (_getDocuments ^IMap [g]
+    documents)
+  (_getEdges ^IMap [g]
+    edges)
 
   HasVertex
   (-has-vertex? [g id labels]
@@ -465,8 +487,8 @@
 
   RemoveDocuments
   (remove-documents [g elements]
-    (forked
-      (remove-documents (linear g)
+    (to-forked
+      (remove-documents (to-linear g)
         (map (fn [e]
                (cond (vertex? e) e
                      (edge? e) e
@@ -502,10 +524,10 @@
 
   Preserves the settings and metadata of the first graph."
   ([merge-edge merge-doc g1]
-   (linear g1))
+   (to-linear g1))
   ([merge-edge merge-doc g1 g2]
-   (let [^LinearGraph g1 (linear (forked g1)) ;; Ensure we don't clobber g1, be set up to return a linear graph.
-         ^ForkedGraph g2 (forked g2)
+   (let [^LinearGraph g1 (to-linear (to-forked g1)) ;; Ensure we don't clobber g1, be set up to return a linear graph.
+         ^ForkedGraph g2 (to-forked g2)
          edges (.merge ^IMap (.edges g1) (.edges g2)
                  (binary-op
                    (fn [^IGraph eg1 ^IGraph eg2]
@@ -525,16 +547,6 @@
   ([g1 g2 g3 & gs]
    (reduce merge g1 (cons g2 (cons g3 gs)))))
 
-(defn ^IMap -documents [g]
-  (if (instance? ForkedGraph g)
-    (.documents ^ForkedGraph g)
-    (.documents ^LinearGraph g)))
-
-(defn ^IMap -edges [g]
-  (if (instance? ForkedGraph g)
-    (.edges ^ForkedGraph g)
-    (.edges ^LinearGraph g)))
-
 (defn- -has-vertex-document? [g id]
   (.contains (-documents g) id))
 
@@ -548,17 +560,17 @@
 (defn vertex-ids-with-document [g]
   (seq (.keys (-documents g))))
 
-(defn- graph-equality [a b]
+(defn graph-equality [a b]
   ;; TODO: include settings in equality and hashing?
   (if-let [[edges documents] (condp instance? a
-                                LinearGraph [(.edges ^LinearGraph a) (.documents ^LinearGraph a)]
-                                ForkedGraph [(.edges ^ForkedGraph a) (.documents ^ForkedGraph a)]
+                                LinearGraph [(-edges a) (-documents a)]
+                                ForkedGraph [(-edges a) (-documents a)]
                                 false)]
     (condp instance? b
-      LinearGraph (and (.equals edges (.edges ^LinearGraph b))
-                       (.equals documents (.documents ^LinearGraph b)))
-      ForkedGraph (and (.equals edges (.edges ^ForkedGraph b))
-                       (.equals documents (.documents ^ForkedGraph b)))
+      LinearGraph (and (.equals edges (-edges b))
+                       (.equals documents (-documents b)))
+      ForkedGraph (and (.equals edges (-edges b))
+                       (.equals documents (-documents b)))
       false)
     false))
 
