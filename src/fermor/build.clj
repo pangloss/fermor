@@ -8,25 +8,40 @@
   (-reset-graph [builder g]
     "Change the underlying graph for a builder. Use with caution as this will be a bit confusing."))
 
+(def ^:private PResetGraph (:on-interface ResetGraph))
+
 (declare ->BuilderGraph)
+
+(defn builder? [g]
+  (and (some? g) (.isAssignableFrom PResetGraph (class g))))
 
 (defn builder
   "Create a new Builder Graph from an existing graph."
   ([graph]
    (builder (atom nil) graph))
   ([ga graph]
-   (reset! ga (p/to-forked graph))
-   (->BuilderGraph ga)))
+   (let [graph (p/to-forked graph)]
+     (assert (not (builder? graph)))
+     (reset! ga graph)
+     (->BuilderGraph ga))))
 
 (defmacro ^:private mutate [sym op]
   ;; This is a very nasty little macro that's just to save some repetition.
   ;; It requires the self argument to be called g and needs to be within the
   ;; implementation so that the ga atom is visible.
-  `(let [~sym (p/to-linear @~'ga)]
-     (prn ~sym)
-     ~op
-     (reset! ~'ga (p/to-forked ~sym))
-     ~'g))
+  `(if (p/linear? @~'ga)
+     (let [~sym @~'ga]
+       ~op
+       ~'g)
+     (let [~sym (p/to-linear @~'ga)]
+       (assert (not (builder? ~sym)))
+       (try
+         (reset! ~'ga ~sym)
+         ~op
+         (finally
+           (let [g# (p/to-forked ~sym)]
+             (reset! ~'ga g#))))
+       ~'g)))
 
 (deftype BuilderGraph [ga]
   Object
