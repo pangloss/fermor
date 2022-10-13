@@ -102,9 +102,9 @@
 
   AllEdges
   (all-edges [g]
-    (all-edges graph))
+    (map ->KEdge (all-edges graph)))
   (all-edges [g labels]
-    (all-edges graph labels))
+    (map ->KEdge (all-edges graph labels)))
 
   GetVertex
   (get-vertex [g kind-id]
