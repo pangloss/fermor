@@ -1,56 +1,22 @@
 (ns fermor.build
-  (:require [fermor.custom-graph :as custom]
-            [fermor.protocols :as p]
-            [fermor.graph :as graph]
-            [fermor.core :as g])
+  (:require [fermor.protocols :as p]
+            [fermor.graph :as graph])
   (:import fermor.graph.IEdgeGraphs
-           (io.lacuna.bifurcan DirectedGraph DirectedAcyclicGraph IGraph IMap Map IEdge)))
+           (io.lacuna.bifurcan DirectedGraph DirectedAcyclicGraph IGraph IEdge)))
 
-(declare ->BV ->BuildGraph ->BLG)
+(defprotocol ResetGraph
+  (-reset-graph [builder g]
+    "Change the underlying graph for a builder. Use with caution as this will be a bit confusing."))
 
-(defn forked-builder
-  ([] (forked-builder (atom nil)))
-  ([ga]
-   (if (g/graph? ga)
-     (forked-builder (atom nil) ga)
-     (fn graph->BuildGraph [graph]
-       (reset! ga graph)
-       (->BuildGraph ga))))
+(declare ->BuilderGraph)
+
+(defn builder
+  "Create a new Builder Graph from an existing graph."
+  ([graph]
+   (builder (atom nil) graph))
   ([ga graph]
-   (reset! ga graph)
-   (->BuildGraph ga)))
-
-
-(defn vertex-builder [ga]
-  (fn element->BV [element]
-    (->BV ga element)))
-
-(defn refresh [graph vertex]
-  (p/get-vertex graph (p/element-id vertex)))
-
-#_
-(defn builder-graph [orig-g]
-  (let [ga (atom orig-g)]
-    (custom/wrap-graph orig-g
-      nil
-      (forked-builder ga)
-      nil
-      nil ;;(vertex-builder ga)
-      nil)))
-
-(comment
-  (let [g
-        (-> (g/graph)
-          g/forked
-          forked-builder
-          (g/add-edges :xyz [[1 2] [2 3]]))
-        v (first (g/vertices g))
-        _ (g/add-edges g :abc [[1 100] [2 100] [3 100]])]
-    (g/out v)
-    (g/linear g))
-
-  ,)
-
+   (reset! ga (p/to-forked graph))
+   (->BuilderGraph ga)))
 
 (defmacro ^:private mutate [sym op]
   ;; This is a very nasty little macro that's just to save some repetition.
@@ -62,11 +28,24 @@
      (reset! ~'ga (p/to-forked ~sym))
      ~'g))
 
-(defn -all-vertices [g]
-  (map #(graph/->V g (g/element-id %) nil nil)
-    (p/all-vertices @(.ga g))))
+(deftype BuilderGraph [ga]
+  Object
+  (equals [a b] (.equals @ga b))
+  (hashCode [e] (.hashCode @ga))
 
-(deftype BuildGraph [ga]
+  clojure.lang.IObj
+  (withMeta [o m]
+    (swap! ga #(.withMeta % m))
+    o)
+
+  p/Graph
+
+  p/GraphSettings
+  (-settings [g] (p/-settings @ga))
+
+  clojure.lang.IMeta
+  (meta [o] (meta @ga))
+
   p/Wrappable
   (-unwrap [g] (p/-unwrap @ga))
 
@@ -77,6 +56,10 @@
   p/ToForked
   (to-forked [g]
     (graph/forked @ga))
+
+  ResetGraph
+  (-reset-graph [builder g]
+    (reset! ga g))
 
   IEdgeGraphs
   (_getLabels ^clojure.lang.IPersistentVector [g]
@@ -95,12 +78,11 @@
   (-transpose [g]
     (p/-transpose g (._getLabels g)))
   (-transpose [g labels]
-    ;; This will only include listed labels in the output graph
+    ;; NOTE: unlike other functions, this one returns a new independent graph.
     (let [lg (p/to-linear @ga)
           lg (p/-transpose lg labels)]
       ;; can't use mutate in this case.
-      (reset! ga (p/to-forked lg))
-      g))
+      (builder (p/to-forked lg))))
 
   p/AddEdges
   (add-edges [g label pairs-or-triples]
@@ -142,8 +124,7 @@
   (-has-vertex? [g id]
     (p/-has-vertex? @ga id))
 
-  #_#_
-  GetEdge
+  p/GetEdge
   (-get-edge [g label from-id to-id]
     (when-let [edge (._getEdgeGraph g label)]
       (try
@@ -152,19 +133,18 @@
           ;; FIXME: try to find a better way to do this.
           (.edge ^IGraph edge from-id to-id)
           ;; Don't cache the document in a mutable graph.
-          (->E label (->V g from-id nil nil) (->V g to-id nil nil) nil true nil))
+          (graph/->E label (graph/->V g from-id nil nil) (graph/->V g to-id nil nil) nil true nil))
         (catch IllegalArgumentException e
           nil))))
 
   p/AllVertices
   (all-vertices [g]
-    (-all-vertices g))
+    (map #(graph/->V g (p/element-id %) nil nil)
+      (p/all-vertices @(.ga g))))
 
-
-  #_#_#_
-  AllEdges
+  p/AllEdges
   (all-edges [g]
-    (all-edges g (._getLabels ^IEdgeGraphs g)))
+    (p/all-edges g (._getLabels ^IEdgeGraphs g)))
   (all-edges [g labels]
     (letfn [(next-edges [labels]
               (when (seq labels)
@@ -173,27 +153,15 @@
                     (lazy-seq
                       (concat
                         (map (fn [^IEdge e]
-                               (->E label
-                                 (->V g (.from e) nil nil)
-                                 (->V g (.to e) nil nil)
+                               (graph/->E label
+                                 (graph/->V g (.from e) nil nil)
+                                 (graph/->V g (.to e) nil nil)
                                  nil true nil))
                           (iterator-seq (.iterator (.edges edge))))
                         (next-edges (rest labels))))
                     (next-edges (rest labels))))))]
       (next-edges labels)))
 
-  #_#_
-  GetVertex
+  p/GetVertex
   (get-vertex [g id]
-    (->V g id nil nil))
-
-  #_#_
-  Linear
-  (to-forked [g]
-    (->ForkedGraph (.forked (.mapValues edges
-                              (reify BiFunction
-                                (apply [this k v]
-                                  (.forked ^IGraph v)))))
-      (.forked documents)
-      settings
-      metadata)))
+    (graph/->V g id nil nil)))
