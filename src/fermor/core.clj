@@ -3,6 +3,7 @@
             [potemkin :refer [import-vars import-def]]
             [flatland.ordered.set :refer [ordered-set]]
             [fermor.protocols :as proto :refer [wrappable? Wrappable -out-edges -in-edges
+                                                to-forked to-linear
                                                 traversed-forward -label -unwrap
                                                 -out-edges-prepared -in-edges-prepared
                                                 -transpose -has-vertex? -get-edge]]
@@ -30,7 +31,7 @@
                                ;; KindId
                                id k kind lookup)
              ;; Bifurcan Graph
-             (fermor.graph linear forked dag-edge digraph-edge
+             (fermor.graph dag-edge digraph-edge
                            undirected-edge build-graph vertices-with-edge
                            ;; read printed graph elements
                            v e-> e->in
@@ -45,6 +46,17 @@
 (import-def fermor.protocols/element-id vertex-id)
 (import-def fermor.protocols/element-id edge-id)
 
+
+(defn linear
+  "Make the graph mutable (but only therefore useable in linear code)"
+  [x]
+  (to-linear x))
+
+
+(defn forked
+  "Make the graph immutable."
+  [x]
+  (to-forked x))
 
 (defmacro assert-linear! [graph]
   (if *assert*

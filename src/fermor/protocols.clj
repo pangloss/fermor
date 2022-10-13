@@ -51,10 +51,14 @@
 (defprotocol WeightedEdge
   (-weight [e]))
 
-(defprotocol Linear
+(defprotocol Linear)
+
+(defprotocol Forked)
+
+(defprotocol ToForked
   (to-forked [x]))
 
-(defprotocol Forked
+(defprotocol ToLinear
   (to-linear [x]))
 
 (defprotocol ISubpath

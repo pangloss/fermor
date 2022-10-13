@@ -14,20 +14,6 @@
   graph-equality -get-edge-document --in-edges --out-edges -documents
   -edges -has-vertex-document? edge-graphs)
 
-(defn linear
-  "Make the graph mutable (but only therefore useable in linear code)"
-  [x]
-  (cond (forked? x) (to-linear x)
-        (linear? x) x
-        :else (condition :unknown-type-for/linear x)))
-
-(defn forked
-  "Make the graph immutable."
-  [x]
-  (cond (linear? x) (to-forked x)
-        (forked? x) x
-        :else (condition :unknown-type-for/forked x)))
-
 (defn dag-edge
   "Provide this as the value of edge-type when calling add-edges (the first time, when the edge type
   is being created), and it will use this type of edge for all subsequent edges added with that label."
@@ -250,6 +236,10 @@
     (->V g id nil nil))
 
   Linear
+  ToLinear
+  (to-linear [g] g)
+
+  ToForked
   (to-forked [g]
     (->ForkedGraph (.forked (.mapValues edges
                               (reify BiFunction
@@ -488,6 +478,11 @@
     (-forked-set-documents g element-document-pairs))
 
   Forked
+
+  ToForked
+  (to-forked [g] g)
+
+  ToLinear
   (to-linear [g]
     (->LinearGraph (.mapValues (.linear edges)
                      (reify BiFunction
