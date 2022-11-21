@@ -342,9 +342,9 @@
             (or (nums v)
               (condition :node-not-numbered {:nums nums :node v})))]
     (:loops
-     (prewalk-reduce entry-node get-successors {:active-loops {}
-                                                :nesting []
-                                                :loops {}}
+     (reverse-postwalk-reduce entry-node get-successors {:active-loops {}
+                                                         :nesting []
+                                                         :loops {}}
        (fn [acc head]
          (let [ending-loop (get-in acc [:active-loops head])
                acc (if ending-loop
