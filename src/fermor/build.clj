@@ -104,6 +104,8 @@
     (p/-transpose g (._getLabels g)))
   (-transpose [g labels]
     ;; NOTE: unlike other functions, this one returns a new independent graph.
+    (assert false "not impl")
+    #_
     (let [lg (p/to-linear @ga)
           lg (p/-transpose lg labels)]
       ;; can't use mutate in this case.
@@ -158,14 +160,17 @@
           ;; FIXME: try to find a better way to do this.
           (.edge ^IGraph edge from-id to-id)
           ;; Don't cache the document in a mutable graph.
-          (graph/->E label (graph/->V g from-id nil nil) (graph/->V g to-id nil nil) nil true nil))
+          (graph/->E label
+            (-> (graph/->V g from-id nil nil) (with-meta {:ga ga}))
+            (-> (graph/->V g to-id nil nil) (with-meta {:ga ga}))
+            nil true nil))
         (catch IllegalArgumentException e
           nil))))
 
   p/AllVertices
   (all-vertices [g]
-    (map #(graph/->V g (p/element-id %) nil nil)
-      (p/all-vertices @(.ga g))))
+    (map #(-> (graph/->V g (p/element-id %) nil nil) (with-meta {:ga ga}))
+      (p/all-vertices @ga)))
 
   p/AllEdges
   (all-edges [g]
@@ -179,8 +184,8 @@
                       (concat
                         (map (fn [^IEdge e]
                                (graph/->E label
-                                 (graph/->V g (.from e) nil nil)
-                                 (graph/->V g (.to e) nil nil)
+                                 (-> (graph/->V g (.from e) nil nil) (with-meta {:ga ga}))
+                                 (-> (graph/->V g (.to e) nil nil) (with-meta {:ga ga}))
                                  nil true nil))
                           (iterator-seq (.iterator (.edges edge))))
                         (next-edges (rest labels))))
@@ -189,4 +194,4 @@
 
   p/GetVertex
   (get-vertex [g id]
-    (graph/->V g id nil nil)))
+    (-> (graph/->V g id nil nil) (with-meta {:ga ga}))))
