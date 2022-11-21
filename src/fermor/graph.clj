@@ -638,11 +638,15 @@
     (let [g (get-graph (.out_v e))
           edges (.get (-edges g) (.label e))]
       (when (.isPresent edges)
-        (let [edges ^IGraph (.get edges)
-              edge (.edge edges
-                          (element-id (.out_v e))
-                          (element-id (.in_v e)))]
-          edge)))))
+        (try
+          (let [edges ^IGraph (.get edges)
+                edge (.edge edges
+                       (element-id (.out_v e))
+                       (element-id (.in_v e)))]
+            edge)
+          (catch IllegalArgumentException e
+            ;; thrown if the edge no longer exists in the graph.
+            nil))))))
 
 (defn labels
   "Return a list of edge labels present in the graph"
