@@ -996,9 +996,7 @@
   [style control cut-cycles? pred path-pred element-pred f r]
   (let [paths (when (or cut-cycles? path-pred pred (identical? descents style))
                 (if cut-cycles?
-                  (if (or (fn? pred) (fn? path-pred))
-                    (ordered-set)
-                    #{})
+                  (ordered-set)
                   []))
         depth-pred (when-let [n (cond (nat-int? path-pred) path-pred (nat-int? pred) pred)]
                      (fn dpred [p] (< (count p) n)))
