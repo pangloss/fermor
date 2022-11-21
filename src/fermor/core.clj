@@ -86,6 +86,54 @@
   ([graph label out-v in-v document]
    (add-edges graph label [[(element-id out-v) (element-id in-v) document]])))
 
+(defn add-edges-from
+  ([label from vs]
+   (let [from-id (element-id from)]
+     (add-edges (get-graph from) label
+       (map (fn [v]
+              [from-id (element-id v)])
+         vs))))
+  ([label from vs edge-documents]
+   (let [from-id (element-id from)
+         triples (map (fn [v doc]
+                        [from-id (element-id v) doc])
+                   vs
+                   edge-documents)
+         triples (if (= (count triples) (count vs))
+                   triples
+                   (condition :missing-documents
+                     {:help "Return :triples to ignore, return other triples, or blow up"
+                      :triples triples
+                      :vs vs
+                      :edge-documents edge-documents
+                      :label label}))]
+       (add-edges (get-graph from) label
+         triples))))
+
+(defn add-edges-to
+  ([label vs to]
+   (let [to-id (element-id to)]
+     (add-edges (get-graph to) label
+       (map (fn [v]
+              [(element-id v) to-id])
+         vs))))
+  ([label vs to edge-documents]
+   (let [to-id (element-id to)
+         triples (map (fn [v doc]
+                        [(element-id v) to-id doc])
+                   vs
+                   edge-documents)
+         triples (if (= (count triples) (count vs))
+                   triples
+                   (condition :missing-documents
+                     {:help "Return :triples to ignore, return other triples, or blow up"
+                      :triples triples
+                      :vs vs
+                      :edge-documents edge-documents
+                      :label label}))]
+     (add-edges (get-graph to) label
+       triples))))
+
 (defn get-edge
   "Efficiently look up an edge by label and the vertices it connects.
 
@@ -222,6 +270,15 @@
    (set-document graph element (f (get-document element))))
   ([graph element f arg & args]
    (set-document graph element (apply f (get-document element) arg args))))
+
+(defn update-document!
+  "Update the document for the given element and return the element."
+  ([element f]
+   (update-document (get-graph element) element f)
+   element)
+  ([element f arg & args]
+   (apply update-document (get-graph element) element f arg args)
+   element))
 
 (defn ensure-seq
   "Returns either nil or something sequential."
