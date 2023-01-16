@@ -38,27 +38,33 @@
   edge cost to the path cost to get to that edge. Proceeds by using the
   lowest-cost known edge.
 
+  NOTE, the control function tests the ID of the vertex, not a vertex object.
+
   Returns immediately if a vertex is accepted.
 
   This does not seem to do the algoritm that searches from the start and end
-  nodes of the graph."
+  nodes of the graph.
+
+  Cost should return a double.
+
+  If no path is found, returns nil. Otherwise returns a vector of vertices on the path."
   [graph label start accept cost]
-  (let [g (edge-graph graph label)
-        result ^Optional (if (vertex? start)
-                           (Graphs/shortestPath g (element-id start)
-                             (as-predicate accept)
-                             (as-tdf cost))
-                           (Graphs/shortestPath g
-                             ^LinearList
-                             (reduce (fn [^LinearList l v]
-                                       (.addLast l (element-id v)))
-                               (LinearList.) start)
-                             (as-predicate accept)
-                             (as-tdf cost)))]
-    (when (.isPresent result)
-      (into []
-        (map #(get-vertex graph %))
-        (.get result)))))
+  (when-let [g (edge-graph graph label)]
+    (let [result ^Optional (if (vertex? start)
+                             (Graphs/shortestPath g (element-id start)
+                               (as-predicate accept)
+                               (as-tdf cost))
+                             (Graphs/shortestPath g
+                               ^LinearList
+                               (reduce (fn [^LinearList l v]
+                                         (.addLast l (element-id v)))
+                                 (LinearList.) start)
+                               (as-predicate accept)
+                               (as-tdf cost)))]
+      (when (.isPresent result)
+        (into []
+          (map #(get-vertex graph %))
+          (.get result))))))
 
 (defn strongly-connected-subgraphs
   "Calculates a set of subgraphs which are then added to the graph with "
@@ -278,7 +284,7 @@
   This is a bonus algo on page 9 of the paper I got the [[immediate-dominators]] algo from."
   [entry-node get-predecessors get-successors]
   (let [doms (immediate-dominators entry-node get-predecessors get-successors)
-        frontiers (zipmap (keys doms) (repeat #{}))]
+        frontiers (zipmap (keys doms) (repeat (count doms) #{}))]
     (reduce (fn [frontiers b]
               (let [preds (get-predecessors b)]
                 (if (next preds) ;; |preds| >= 2

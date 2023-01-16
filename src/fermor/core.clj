@@ -243,17 +243,27 @@
      (-has-vertex? graph id labels))))
 
 (defn get-vertex!
-  "Attempt to look up a vertex.
+  "Attempt to look up a vertex. If a default is provided, return that if the vertex is not found.
 
   If the vertex is not found, signal :vertex-not-found. If nothing manages the
   signal, an exception will be raised."
-  [graph id]
-  (if (-has-vertex? graph id)
-    (get-vertex graph id)
-    ;; I'm not sure if the better default action is to return nil or raise an exception...
-    (condition :vertex-not-found [graph id]
-      #_(default nil)
-      (error "Vertex does not exist" {:graph graph :id id}))))
+  ([graph id]
+   (if (-has-vertex? graph id)
+     (get-vertex graph id)
+     ;; I'm not sure if the better default action is to return nil or raise an exception...
+     (condition :vertex-not-found [graph id]
+       #_(default nil)
+       (error "Vertex does not exist" {:graph graph :id id}))))
+  ([graph id default]
+   (if (-has-vertex? graph id)
+     (get-vertex graph id)
+     default)))
+
+(defn reload
+  "Get the vertex from the given graph. This is useful if the vertex was
+  previously loaded in a different version of a graph."
+  [g v]
+  (get-vertex! g (element-id v) nil))
 
 (defn set-document
   "Replace the document for a given element or vertex id.
@@ -1189,17 +1199,20 @@
     (filter #(= kind-pred (kind %)) r)
     (filter (comp kind-pred kind) r)))
 
+(defn id? [x]
+  (instance? KindId x))
+
 (defn with-id
   "Include only items matching the KindId or id predicate."
   [id-pred r]
-  (if (or (instance? KindId id-pred) (keyword? id-pred))
+  (if (or (id? id-pred) (keyword? id-pred))
     (filter #(= id-pred (element-id %)) r)
     (filter (comp id-pred element-id) r)))
 
 (defn not-id
   "Remove items matching the KindId or id predicate."
   [id-pred r]
-  (if (or (instance? KindId id-pred) (keyword? id-pred))
+  (if (or (id? id-pred) (keyword? id-pred))
     (filter #(not= id-pred (element-id %)) r)
     (remove (comp id-pred element-id) r)))
 
