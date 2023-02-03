@@ -1088,6 +1088,36 @@
   ([path-pred element-pred f r]
    (build-all descents nil true nil path-pred element-pred f r)))
 
+(defn all-paths-to
+  "Produce a lazy sequence of all paths to every element where pred returns true.
+
+  Once a path is returned, that path will be cut and no further searching will happen.
+
+  If there are multiple paths to the same element where pred returns true, all
+  of those paths will be returned.
+
+  Cuts cycles"
+  [pred children r]
+  (descents (ordered-set)
+    (fn control [path e] (if (pred path e) emit continue))
+    (fn [path e] (when-not (path e) (children e)))
+    r))
+
+(defn search
+  "Produce a lazy sequence of all elements where pred returns true.
+
+  Once an element is returned, its children will not be seached.
+
+  If there are multiple paths to the same result, the result will be returned
+  multiple times.
+
+  Cuts cycles"
+  [pred children r]
+  (descend #{}
+    (fn control [path e] (if (pred path e) emit continue))
+    (fn [path e] (when-not (path e) (children e)))
+    r))
+
 (defn all-paths-with-cycles
   "Produces a lazy sequence of paths to every element in the route and all of
   their children. Does not cut cycles.
