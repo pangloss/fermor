@@ -1,4 +1,4 @@
-(ns fermor.gremlin-examples
+(ns fermor.gremlin-examples-test
   (:require  [clojure.test :refer [deftest is testing]]
              [fermor.protocols :refer [*compact-path-printing*]]
              [fermor.core :refer :all :as c :exclude [is]]))
@@ -239,21 +239,21 @@
 
 (deftest recommend-stuff
   (is (= [[(V :person :jon)
-           {2 [(V :product 3) (V :product 1) (V :product 5)],
-            3 [(V :product 2) (V :product 4)]}]
+           {2 #{(V :product 3) (V :product 1) (V :product 5)},
+            3 #{(V :product 2) (V :product 4)}}]
           [(V :person :alice)
-           {4 [(V :product 8) (V :product 10)],
-            5 [(V :product 9) (V :product 2)],
-            6 [(V :product 1)]}]
+           {4 #{(V :product 8) (V :product 10)},
+            5 #{(V :product 9) (V :product 2)},
+            6 #{(V :product 1)}}]
           [(V :person :bob)
-           {2 [(V :product 6) (V :product 8) (V :product 10)],
-            3 [(V :product 7) (V :product 9)]}]
+           {2 #{(V :product 6) (V :product 8) (V :product 10)},
+            3 #{(V :product 7) (V :product 9)}}]
           [(V :person :jill)
-           {2 [(V :product 3) (V :product 1) (V :product 5)],
-            3 [(V :product 7) (V :product 9)]}]
+           {2 #{(V :product 3) (V :product 1) (V :product 5)},
+            3 #{(V :product 7) (V :product 9)}}]
           [(V :person :jack)
-           {2 [(V :product 6) (V :product 8) (V :product 10)],
-            3 [(V :product 2) (V :product 4)]}]]
+           {2 #{(V :product 6) (V :product 8) (V :product 10)},
+            3 #{(V :product 2) (V :product 4)}}]]
          (for [person (->> (all-vertices rec-graph :person))]
            [person (->> person
                         (out [:bought])
