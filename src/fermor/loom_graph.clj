@@ -2,7 +2,8 @@
   (:use fermor.protocols)
   (:require [loom.graph :as loom]
             loom.attr
-            [fermor.graph :refer [vertices-with-edge vertex-ids-with-document forked linear]]
+            [fermor.core :refer [forked linear]]
+            [fermor.graph :refer [vertices-with-edge vertex-ids-with-document]]
             [fermor.custom-graph :as custom :refer [-wrapper -wrapper-settings]]))
 
 (set! *warn-on-reflection* true)
