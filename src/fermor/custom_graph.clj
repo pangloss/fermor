@@ -18,6 +18,10 @@
   (implementor-type ^Class [w])
   (make-implementor [w]))
 
+(defprotocol Wrapping
+  (plain [w])
+  (-wrapper [w]))
+
 (deftype Wrapper [settings t ->
                   ^:unsynchronized-mutable F
                   ^:unsynchronized-mutable L
@@ -103,8 +107,8 @@
   (wrap-inline ->all-vertices fermor.protocols.AllVertices)
   (wrap-inline ->all-edges fermor.protocols.AllEdges)
   (wrap-inline ->get-vertex fermor.protocols.GetVertex)
-  (wrap-inline ->to-linear fermor.protocols.Forked)
-  (wrap-inline ->to-forked fermor.protocols.Linear)
+  (wrap-inline ->to-linear fermor.protocols.ToLinear)
+  (wrap-inline ->to-forked fermor.protocols.ToForked)
   (wrap-inline ->has-document fermor.protocols.HasDocument)
   (wrap-inline ->has-vertex fermor.protocols.HasVertex)
   (wrap-inline ->get-edge fermor.protocols.GetEdge)
@@ -118,10 +122,6 @@
 
 (comment (macroexpand '(->vertex-edges 'element 'V+)))
 
-
-(defprotocol Wrapping
-  (plain [w])
-  (-wrapper [w]))
 
 (deftype mV [element V+]
   Object
@@ -267,6 +267,10 @@
     (-unwrap graph))
 
   Forked
+  ToForked
+  (to-forked [g] g)
+
+  ToLinear
   (to-linear [g]
     (-> F+ (->to-linear g) to-linear (->mLinearGraph (linear-graph-wrapper F+)))))
 
@@ -361,6 +365,10 @@
             (->mE (edge-wrapper L+))))
 
   Linear
+  ToLinear
+  (to-linear [g] g)
+
+  ToForked
   (to-forked [g]
     (-> L+ (->to-forked g) to-forked (->mForkedGraph (forked-graph-wrapper L+)))))
 
