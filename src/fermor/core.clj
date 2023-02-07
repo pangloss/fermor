@@ -3,6 +3,7 @@
             [potemkin :refer [import-vars import-def]]
             [flatland.ordered.set :refer [ordered-set]]
             [fermor.protocols :as proto :refer [wrappable? Wrappable -out-edges -in-edges
+                                                to-forked to-linear
                                                 traversed-forward -label -unwrap
                                                 -out-edges-prepared -in-edges-prepared
                                                 -transpose -has-vertex? -get-edge]]
@@ -30,7 +31,7 @@
                                ;; KindId
                                id k kind lookup)
              ;; Bifurcan Graph
-             (fermor.graph linear forked dag-edge digraph-edge
+             (fermor.graph dag-edge digraph-edge
                            undirected-edge build-graph vertices-with-edge
                            ;; read printed graph elements
                            v e-> e->in
@@ -45,6 +46,17 @@
 (import-def fermor.protocols/element-id vertex-id)
 (import-def fermor.protocols/element-id edge-id)
 
+
+(defn linear
+  "Make the graph mutable (but only therefore useable in linear code)"
+  [x]
+  (to-linear x))
+
+
+(defn forked
+  "Make the graph immutable."
+  [x]
+  (to-forked x))
 
 (defmacro assert-linear! [graph]
   (if *assert*
@@ -71,6 +83,54 @@
    (add-edges graph label [[(element-id out-v) (element-id in-v)]]))
   ([graph label out-v in-v document]
    (add-edges graph label [[(element-id out-v) (element-id in-v) document]])))
+
+(defn add-edges-from
+  ([label from vs]
+   (let [from-id (element-id from)]
+     (add-edges (get-graph from) label
+       (map (fn [v]
+              [from-id (element-id v)])
+         vs))))
+  ([label from vs edge-documents]
+   (let [from-id (element-id from)
+         triples (map (fn [v doc]
+                        [from-id (element-id v) doc])
+                   vs
+                   edge-documents)
+         triples (if (= (count triples) (count vs))
+                   triples
+                   (condition :missing-documents
+                     {:help "Return :triples to ignore, return other triples, or blow up"
+                      :triples triples
+                      :vs vs
+                      :edge-documents edge-documents
+                      :label label}))]
+       (add-edges (get-graph from) label
+         triples))))
+
+(defn add-edges-to
+  ([label vs to]
+   (let [to-id (element-id to)]
+     (add-edges (get-graph to) label
+       (map (fn [v]
+              [(element-id v) to-id])
+         vs))))
+  ([label vs to edge-documents]
+   (let [to-id (element-id to)
+         triples (map (fn [v doc]
+                        [(element-id v) to-id doc])
+                   vs
+                   edge-documents)
+         triples (if (= (count triples) (count vs))
+                   triples
+                   (condition :missing-documents
+                     {:help "Return :triples to ignore, return other triples, or blow up"
+                      :triples triples
+                      :vs vs
+                      :edge-documents edge-documents
+                      :label label}))]
+     (add-edges (get-graph to) label
+       triples))))
 
 (defn get-edge
   "Efficiently look up an edge by label and the vertices it connects.
@@ -181,17 +241,27 @@
      (-has-vertex? graph id labels))))
 
 (defn get-vertex!
-  "Attempt to look up a vertex.
+  "Attempt to look up a vertex. If a default is provided, return that if the vertex is not found.
 
   If the vertex is not found, signal :vertex-not-found. If nothing manages the
   signal, an exception will be raised."
-  [graph id]
-  (if (-has-vertex? graph id)
-    (get-vertex graph id)
-    ;; I'm not sure if the better default action is to return nil or raise an exception...
-    (condition :vertex-not-found [graph id]
-      #_(default nil)
-      (error "Vertex does not exist" {:graph graph :id id}))))
+  ([graph id]
+   (if (-has-vertex? graph id)
+     (get-vertex graph id)
+     ;; I'm not sure if the better default action is to return nil or raise an exception...
+     (condition :vertex-not-found [graph id]
+       #_(default nil)
+       (error "Vertex does not exist" {:graph graph :id id}))))
+  ([graph id default]
+   (if (-has-vertex? graph id)
+     (get-vertex graph id)
+     default)))
+
+(defn reload
+  "Get the vertex from the given graph. This is useful if the vertex was
+  previously loaded in a different version of a graph."
+  [g v]
+  (get-vertex! g (element-id v) nil))
 
 (defn set-document
   "Replace the document for a given element or vertex id.
@@ -208,6 +278,15 @@
    (set-document graph element (f (get-document element))))
   ([graph element f arg & args]
    (set-document graph element (apply f (get-document element) arg args))))
+
+(defn update-document!
+  "Update the document for the given element and return the element."
+  ([element f]
+   (update-document (get-graph element) element f)
+   element)
+  ([element f arg & args]
+   (apply update-document (get-graph element) element f arg args)
+   element))
 
 (defn ensure-seq
   "Returns either nil or something sequential."
@@ -922,12 +1001,10 @@
 
 (defn- build-all
   "Does everything just as its name implies."
-  [style control cut-cycles? pred path-pred element-pred f r]
+  [style control cut-cycles? pred path-pred element-pred children r]
   (let [paths (when (or cut-cycles? path-pred pred (identical? descents style))
                 (if cut-cycles?
-                  (if (or (fn? pred) (fn? path-pred))
-                    (ordered-set)
-                    #{})
+                  (ordered-set)
                   []))
         depth-pred (when-let [n (cond (nat-int? path-pred) path-pred (nat-int? pred) pred)]
                      (fn dpred [p] (< (count p) n)))
@@ -949,9 +1026,9 @@
                 (partial style paths control)
                 (partial style paths))]
     (if pred
-      (style (fn fpred1 [path e] (when (pred path e) (f e)))
+      (style (fn fpred1 [path e] (when (pred path e) (children e)))
              (ensure-seq r))
-      (style (fn fpred2 [path e] (f e))
+      (style (fn fpred2 [path e] (children e))
              (ensure-seq r)))))
 
 (defn all
@@ -964,74 +1041,104 @@
   length allowed before iterating. Note that the internal path is only the
   elements seen by the iteration and is not the same as the more complete path
   produced by `with-path`."
-  ([f r]
-   (build-all descend nil true nil nil nil f r))
-  ([pred f r]
-   (build-all descend nil true pred nil nil f r))
-  ([path-pred element-pred f r]
-   (build-all descend nil true nil path-pred element-pred f r)))
+  ([children r]
+   (build-all descend nil true nil nil nil children r))
+  ([pred children r]
+   (build-all descend nil true pred nil nil children r))
+  ([path-pred element-pred children r]
+   (build-all descend nil true nil path-pred element-pred children r)))
 
 (defn all-with-cycles
   "Produces a lazy sequence of every element in the route and all of their
   children. Does not cut cycles.
 
   See `all` for details on arities."
-  ([f r]
-   (build-all descend nil false nil nil nil f (ensure-seq r)))
-  ([f pred r]
-   (build-all descend nil false pred nil nil f (ensure-seq r)))
-  ([f path-pred el-pred r]
-   (build-all descend nil false nil path-pred el-pred f (ensure-seq r))))
+  ([children r]
+   (build-all descend nil false nil nil nil children (ensure-seq r)))
+  ([children pred r]
+   (build-all descend nil false pred nil nil children (ensure-seq r)))
+  ([children path-pred el-pred r]
+   (build-all descend nil false nil path-pred el-pred children (ensure-seq r))))
 
-(defn- deepest-control [f] (fn [p e] (if (seq (f e)) continue emit)))
+(defn- deepest-control [children] (fn [p e] (if (seq (children e)) continue emit)))
 
 (defn deepest
   "Produces a lazy sequence of every leaf node reachable by traversing all of
   the children of every element in the route. Cuts cycles.
 
   See `all` for details on arities."
-  ([f r]
-   (build-all descend (deepest-control f) true nil  nil nil f r))
-  ([pred f r]
-   (build-all descend (deepest-control f) true pred nil nil f r))
-  ([path-pred element-pred f r]
-   (build-all descend (deepest-control f) true nil path-pred element-pred f r)))
+  ([children r]
+   (build-all descend (deepest-control children) true nil  nil nil children r))
+  ([pred children r]
+   (build-all descend (deepest-control children) true pred nil nil children r))
+  ([path-pred element-pred children r]
+   (build-all descend (deepest-control children) true nil path-pred element-pred children r)))
 
 (defn all-paths
   "Produces a lazy sequence of paths to every element in the route and all of
   their children. Cuts cycles.
 
   See `all` for details on arities."
-  ([f r]
-   (build-all descents nil true nil nil nil f r))
-  ([pred f r]
-   (build-all descents nil true pred nil nil f r))
-  ([path-pred element-pred f r]
-   (build-all descents nil true nil path-pred element-pred f r)))
+  ([children r]
+   (build-all descents nil true nil nil nil children r))
+  ([pred children r]
+   (build-all descents nil true pred nil nil children r))
+  ([path-pred element-pred children r]
+   (build-all descents nil true nil path-pred element-pred children r)))
+
+(defn all-paths-to
+  "Produce a lazy sequence of all paths to every element where pred returns true.
+
+  Once a path is returned, that path will be cut and no further searching will happen.
+
+  If there are multiple paths to the same element where pred returns true, all
+  of those paths will be returned.
+
+  Cuts cycles"
+  [pred children r]
+  (descents (ordered-set)
+    (fn control [path e] (if (pred path e) emit continue))
+    (fn [path e] (when-not (path e) (children e)))
+    r))
+
+(defn search
+  "Produce a lazy sequence of all elements where pred returns true.
+
+  Once an element is returned, its children will not be seached.
+
+  If there are multiple paths to the same result, the result will be returned
+  multiple times.
+
+  Cuts cycles"
+  [pred children r]
+  (descend #{}
+    (fn control [path e] (if (pred path e) emit continue))
+    (fn [path e] (when-not (path e) (children e)))
+    r))
 
 (defn all-paths-with-cycles
   "Produces a lazy sequence of paths to every element in the route and all of
   their children. Does not cut cycles.
 
   See `all` for details on arities."
-  ([f r]
-   (build-all descents nil false nil nil nil f r))
-  ([pred f r]
-   (build-all descents nil false pred nil nil f r))
-  ([path-pred element-pred f r]
-   (build-all descents nil false nil path-pred element-pred f r)))
+  ([children r]
+   (build-all descents nil false nil nil nil children r))
+  ([pred children r]
+   (build-all descents nil false pred nil nil children r))
+  ([path-pred element-pred children r]
+   (build-all descents nil false nil path-pred element-pred children r)))
 
 (defn deepest-paths
   "Produces a lazy sequence of paths to every leaf node reachable by traversing
   all of the children of every element in the route. Cuts cycles.
 
   See `all` for details on arities."
-  ([f r]
-   (build-all descents (deepest-control f) true nil nil nil f r))
-  ([pred f r]
-   (build-all descents (deepest-control f) true pred nil nil f r))
-  ([path-pred element-pred f r]
-   (build-all descents (deepest-control f) true nil path-pred element-pred f r)))
+  ([children r]
+   (build-all descents (deepest-control children) true nil nil nil children r))
+  ([pred children r]
+   (build-all descents (deepest-control children) true pred nil nil children r))
+  ([path-pred element-pred children r]
+   (build-all descents (deepest-control children) true nil path-pred element-pred children r)))
 
 (defn- all-cycles-control [path e]
   (if (= e (first path))
@@ -1043,52 +1150,52 @@
 
   See `all` for details on arities."
   ;; force a path pred to turn on ordered-sets in build-all.
-  ([f r]
-   (build-all descend all-cycles-control true nil (constantly true) nil f r))
-  ([pred f r]
-   (build-all descend all-cycles-control true pred (constantly true) nil f r))
-  ([path-pred element-pred f r]
+  ([children r]
+   (build-all descend all-cycles-control true nil (constantly true) nil children r))
+  ([pred children r]
+   (build-all descend all-cycles-control true pred (constantly true) nil children r))
+  ([path-pred element-pred children r]
    (build-all descend all-cycles-control true nil
-              (or path-pred (constantly true)) element-pred f r)))
+              (or path-pred (constantly true)) element-pred children r)))
 
 (defn all-cycle-paths
   "Produces a lazy sequence of cyclic paths.
 
   See `all` for details on arities."
   ;; force a path pred to turn on ordered-sets in build-all.
-  ([f r]
-   (build-all descents all-cycles-control true nil (constantly true) nil f r))
-  ([pred f r]
-   (build-all descents all-cycles-control true pred (constantly true) nil f r))
-  ([path-pred element-pred f r]
+  ([children r]
+   (build-all descents all-cycles-control true nil (constantly true) nil children r))
+  ([pred children r]
+   (build-all descents all-cycles-control true pred (constantly true) nil children r))
+  ([path-pred element-pred children r]
    (build-all descents all-cycles-control true nil
-              (or path-pred (constantly true)) element-pred f r)))
+              (or path-pred (constantly true)) element-pred children r)))
 
 (defn is-cycle
   "Matches only if the current element is a member of the results from f."
-  [f r]
-  (lookahead #(all-cycles 1 f %) r))
+  [children r]
+  (lookahead #(all-cycles 1 children %) r))
 
 (defn no-cycle
   "Matches only if the current element is not a member of the results from f."
-  [f r]
-  (neg-lookahead #(all-cycles 1 f %) r))
+  [children r]
+  (neg-lookahead #(all-cycles 1 children %) r))
 
 (defn iter
-  "Repeatedly (`n` times) apply the function `f` to the route `r`."
+  "Repeatedly (`n` times) apply the function `children` to the route `r`."
   {:see-also ["clojure.core/iterate"]}
-  [n f r]
-  (reduce (fn [r _] (f r)) r (range n)))
+  [n children r]
+  (reduce (fn [r _] (children r)) r (range n)))
 
 (defn with
-  "Filters the route for elements where the result of calling the function f
+  "Filters the route for elements where the result of calling the function children
    (fn [e]) are equal to v. If v is a set, then check that the result of
-   calling f is in the set."
-  [f v r]
+   calling children is in the set."
+  [children v r]
   (if (set? v)
-    (filter (fn [e] (v (f e)))
+    (filter (fn [e] (v (children e)))
             (ensure-seq r))
-    (filter (fn [e] (= v (f e)))
+    (filter (fn [e] (= v (children e)))
             (ensure-seq r))))
 
 (defn is
@@ -1120,17 +1227,20 @@
     (filter #(= kind-pred (kind %)) r)
     (filter (comp kind-pred kind) r)))
 
+(defn id? [x]
+  (instance? KindId x))
+
 (defn with-id
   "Include only items matching the KindId or id predicate."
   [id-pred r]
-  (if (or (instance? KindId id-pred) (keyword? id-pred))
+  (if (or (id? id-pred) (keyword? id-pred))
     (filter #(= id-pred (element-id %)) r)
     (filter (comp id-pred element-id) r)))
 
 (defn not-id
   "Remove items matching the KindId or id predicate."
   [id-pred r]
-  (if (or (instance? KindId id-pred) (keyword? id-pred))
+  (if (or (id? id-pred) (keyword? id-pred))
     (filter #(not= id-pred (element-id %)) r)
     (remove (comp id-pred element-id) r)))
 
