@@ -10,7 +10,6 @@
             [fermor.descend :refer [*descend *descents extrude *no-result-interval*]]
             fermor.graph
             [fermor.kind-graph :refer [->KGraph]]
-            fermor.build
             fermor.path)
   (:import clojure.lang.IMeta
            (fermor.protocols TraversalDirection KindId)))
@@ -40,7 +39,6 @@
              ;; Path
              (fermor.path with-path path subpath no-path no-path! cyclic-path?
                path-vertices path-edges)
-             (fermor.build builder)
              ;; Kind Graph
              (fermor.kind-graph V E-> E->in))
 
