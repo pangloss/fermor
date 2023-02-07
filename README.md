@@ -59,7 +59,7 @@ from.
 It's good practice to include both element types in an edge name as I do here.
 
 The following example is admittedly terrible. Until I get a better example set
-up, please see the [gremlin examples](/test/fermor/gremlin_examples.clj) and
+up, please see the [gremlin examples](/test/fermor/gremlin_examples_test.clj) and
 [cypher examples](/test/fermor/cypher_examples.clj), where I've taken the most
 sophisticated examples I've been able to find in those projects' documentation
 and translated them to use fermor. More interesting examples are very welcome so
