@@ -55,6 +55,9 @@ My goal with this layout engine is to rapidly unfold nets that look like long
 chains, minimizing unneeded crossings and producing a final layout that is
 reasonably dense in a minimal rectangular area.
 
+You can try the graph layout out in the `fermor.ui` namespace, either in the
+repl or by running `clj -M -m fermor.ui`.
+
 ### Introduction
 
 To traverse from one sequence of vertices to a related sequence of vertices
