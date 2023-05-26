@@ -1,6 +1,8 @@
 (ns fermor.protocols
   (:require [clojure.pprint :refer [simple-dispatch]]))
 
+(set! *warn-on-reflection* true)
+
 ;; You probably want to use set-config to change these globally.
 (def ^:dynamic *compact-vertex-printing* true)
 (def ^:dynamic *compact-edge-printing* false)
@@ -211,52 +213,52 @@
 (defn graph?
   "Returns true if x is a graph."
   [x]
-  (and (some? x) (.isAssignableFrom PGraph (class x))))
+  (and (some? x) (.isAssignableFrom ^Class PGraph (class x))))
 
 (defn linear?
   "Returns true if x is a linear graph."
   [x]
-  (and (some? x) (.isAssignableFrom PLinear (class x))))
+  (and (some? x) (.isAssignableFrom ^Class PLinear (class x))))
 
 (defn forked?
   "Returns true if x is a forked graph."
   [x]
-  (and (some? x) (.isAssignableFrom PForked (class x))))
+  (and (some? x) (.isAssignableFrom ^Class PForked (class x))))
 
 (defn vertex?
   "Returns true if x is a vertex."
   [x]
-  (and (some? x) (.isAssignableFrom PVertex (class x))))
+  (and (some? x) (.isAssignableFrom ^Class PVertex (class x))))
 
 (defn edge?
   "Returns true if x is an edge."
   [x]
-  (and (some? x) (.isAssignableFrom PEdge (class x))))
+  (and (some? x) (.isAssignableFrom ^Class PEdge (class x))))
 
 (defn element?
   "Returns true if x is either a vertex or an edge."
   [x]
-  (and (some? x) (.isAssignableFrom PElement (class x))))
+  (and (some? x) (.isAssignableFrom ^Class PElement (class x))))
 
 (defn path?
   "Returns true if x is a path."
   [x]
-  (and (some? x) (.isAssignableFrom PPath (class x))))
+  (and (some? x) (.isAssignableFrom ^Class PPath (class x))))
 
 (defn subpath?
   "Returns true if x is a subpath."
   [x]
-  (and (some? x) (.isAssignableFrom PSubpath (class x))))
+  (and (some? x) (.isAssignableFrom ^Class PSubpath (class x))))
 
 (defn wrappable?
   "Returns true if x is wrappable."
   [x]
-  (and (some? x) (.isAssignableFrom PWrappable (class x))))
+  (and (some? x) (.isAssignableFrom ^Class PWrappable (class x))))
 
 (defn graph-settings?
   "Returns true if x is wrappable."
   [x]
-  (and (some? x) (.isAssignableFrom PGraphSettings (class x))))
+  (and (some? x) (.isAssignableFrom ^Class PGraphSettings (class x))))
 
 (extend-type Object
   Wrappable
