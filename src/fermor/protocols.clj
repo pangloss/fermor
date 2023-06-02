@@ -29,7 +29,59 @@
             (instance? clojure.lang.Atom setting)
             (reset! setting v)))))
 
+#_ ;; Replaced this with a lighter weight variant on defrecord. If it's problematic, change it back!
 (defrecord KindId [kind id])
+
+(deftype KindId [kind id ^int ^:unsynchronized-mutable _hash ^int ^:unsynchronized-mutable _hasheq]
+  ;; These hash and equals methods are expensive in defrecord due to the cost of
+  ;; pretending the record is a map. This implementation attempts to be
+  ;; identical other than omitting the fallback map
+  clojure.lang.IHashEq
+  (hasheq [this] (if (zero? _hasheq)
+                   (let [h (int (bit-xor 280812713 #_(hash 'fermor.protocols.KindId)
+                                  (+ (bit-or (hash :kind) (hash kind))
+                                    (bit-or (hash :id) (hash id)))))]
+                     (set! _hasheq h)
+                     h)
+                   _hasheq))
+  (hashCode [this] (if (zero? _hash)
+                     (let [h (int (+
+                                    (bit-or (hash :kind) (hash kind))
+                                    (bit-or (hash :id) (hash id))))]
+                       (set! _hash h)
+                       h)
+                     _hash))
+  (equals [this other]
+    (if (identical? this other)
+      true
+      (if (instance? KindId other)
+        (if (= id (.id ^KindId other))
+          (= kind (.kind ^KindId other))
+          false)
+        false)))
+
+  clojure.lang.ILookup
+  clojure.lang.IKeywordLookup
+  (valAt [this k] (.valAt this k nil))
+  (valAt [this k else] 
+    (case k :kind kind :id id))
+  (getLookupThunk [this k]
+    (let [gclass (class this)]
+      (case k
+        :kind (reify clojure.lang.ILookupThunk
+                (get [thunk gtarget]
+                  (if (identical? (class gtarget) gclass)
+                    (. ^KindId gtarget -kind)
+                    thunk)))
+        :id (reify clojure.lang.ILookupThunk
+              (get [thunk gtarget]
+                (if (identical? (class gtarget) gclass)
+                  (. ^KindId gtarget -id)
+                  thunk)))
+        nil))))
+
+(defn ->KindId [kind id]
+  (new KindId kind id 0 0))
 
 (defn- write-parens [^java.io.Writer w f]
   ;; This is because parinfer-rust is a buggy mess.

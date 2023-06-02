@@ -6,7 +6,7 @@
            io.lacuna/bifurcan           {:mvn/version "0.2.0-alpha6"}
            org.flatland/ordered         {:mvn/version "1.15.10"}
            com.github.jordanlewis/data.union-find {:git/tag "1.0.0" :sha "0e8a06f"}
-           horse.no/pure-conditioning {:git/url "https://github.com/pangloss/pure-conditioning"
+           pangloss/pure-conditioning {:git/url "https://github.com/pangloss/pure-conditioning"
                                        :sha "ff5ffe10ab1cb7f757d8dfdf6953cbc817748d5b"}
 
            com.phronemophobic/membrane {:mvn/version "0.9.31.8-beta"}
