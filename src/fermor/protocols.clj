@@ -1,6 +1,8 @@
 (ns fermor.protocols
   (:require [clojure.pprint :refer [simple-dispatch]]))
 
+(set! *warn-on-reflection* true)
+
 ;; You probably want to use set-config to change these globally.
 (def ^:dynamic *compact-vertex-printing* true)
 (def ^:dynamic *compact-edge-printing* false)
@@ -27,7 +29,59 @@
             (instance? clojure.lang.Atom setting)
             (reset! setting v)))))
 
+#_ ;; Replaced this with a lighter weight variant on defrecord. If it's problematic, change it back!
 (defrecord KindId [kind id])
+
+(deftype KindId [kind id ^int ^:unsynchronized-mutable _hash ^int ^:unsynchronized-mutable _hasheq]
+  ;; These hash and equals methods are expensive in defrecord due to the cost of
+  ;; pretending the record is a map. This implementation attempts to be
+  ;; identical other than omitting the fallback map
+  clojure.lang.IHashEq
+  (hasheq [this] (if (zero? _hasheq)
+                   (let [h (int (bit-xor 280812713 #_(hash 'fermor.protocols.KindId)
+                                  (+ (bit-or (hash :kind) (hash kind))
+                                    (bit-or (hash :id) (hash id)))))]
+                     (set! _hasheq h)
+                     h)
+                   _hasheq))
+  (hashCode [this] (if (zero? _hash)
+                     (let [h (int (+
+                                    (bit-or (hash :kind) (hash kind))
+                                    (bit-or (hash :id) (hash id))))]
+                       (set! _hash h)
+                       h)
+                     _hash))
+  (equals [this other]
+    (if (identical? this other)
+      true
+      (if (instance? KindId other)
+        (if (= id (.id ^KindId other))
+          (= kind (.kind ^KindId other))
+          false)
+        false)))
+
+  clojure.lang.ILookup
+  clojure.lang.IKeywordLookup
+  (valAt [this k] (.valAt this k nil))
+  (valAt [this k else] 
+    (case k :kind kind :id id))
+  (getLookupThunk [this k]
+    (let [gclass (class this)]
+      (case k
+        :kind (reify clojure.lang.ILookupThunk
+                (get [thunk gtarget]
+                  (if (identical? (class gtarget) gclass)
+                    (. ^KindId gtarget -kind)
+                    thunk)))
+        :id (reify clojure.lang.ILookupThunk
+              (get [thunk gtarget]
+                (if (identical? (class gtarget) gclass)
+                  (. ^KindId gtarget -id)
+                  thunk)))
+        nil))))
+
+(defn ->KindId [kind id]
+  (new KindId kind id 0 0))
 
 (defn- write-parens [^java.io.Writer w f]
   ;; This is because parinfer-rust is a buggy mess.
@@ -211,52 +265,52 @@
 (defn graph?
   "Returns true if x is a graph."
   [x]
-  (and (some? x) (.isAssignableFrom PGraph (class x))))
+  (and (some? x) (.isAssignableFrom ^Class PGraph (class x))))
 
 (defn linear?
   "Returns true if x is a linear graph."
   [x]
-  (and (some? x) (.isAssignableFrom PLinear (class x))))
+  (and (some? x) (.isAssignableFrom ^Class PLinear (class x))))
 
 (defn forked?
   "Returns true if x is a forked graph."
   [x]
-  (and (some? x) (.isAssignableFrom PForked (class x))))
+  (and (some? x) (.isAssignableFrom ^Class PForked (class x))))
 
 (defn vertex?
   "Returns true if x is a vertex."
   [x]
-  (and (some? x) (.isAssignableFrom PVertex (class x))))
+  (and (some? x) (.isAssignableFrom ^Class PVertex (class x))))
 
 (defn edge?
   "Returns true if x is an edge."
   [x]
-  (and (some? x) (.isAssignableFrom PEdge (class x))))
+  (and (some? x) (.isAssignableFrom ^Class PEdge (class x))))
 
 (defn element?
   "Returns true if x is either a vertex or an edge."
   [x]
-  (and (some? x) (.isAssignableFrom PElement (class x))))
+  (and (some? x) (.isAssignableFrom ^Class PElement (class x))))
 
 (defn path?
   "Returns true if x is a path."
   [x]
-  (and (some? x) (.isAssignableFrom PPath (class x))))
+  (and (some? x) (.isAssignableFrom ^Class PPath (class x))))
 
 (defn subpath?
   "Returns true if x is a subpath."
   [x]
-  (and (some? x) (.isAssignableFrom PSubpath (class x))))
+  (and (some? x) (.isAssignableFrom ^Class PSubpath (class x))))
 
 (defn wrappable?
   "Returns true if x is wrappable."
   [x]
-  (and (some? x) (.isAssignableFrom PWrappable (class x))))
+  (and (some? x) (.isAssignableFrom ^Class PWrappable (class x))))
 
 (defn graph-settings?
   "Returns true if x is wrappable."
   [x]
-  (and (some? x) (.isAssignableFrom PGraphSettings (class x))))
+  (and (some? x) (.isAssignableFrom ^Class PGraphSettings (class x))))
 
 (extend-type Object
   Wrappable
