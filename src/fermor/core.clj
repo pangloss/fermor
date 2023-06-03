@@ -450,21 +450,25 @@
    (cond
      (vertex? r) [(-in-edges r)]
      (nil? r) nil
+     (not (next r)) (when-let [r (first r)] [(-in-edges r)])
      :else (map -in-edges r)))
   ([labels r]
    (cond
      (vertex? r) [(-in-edges r (ensure-seq labels))]
      (nil? r) nil
+     (not (next r)) (when-let [r (first r)] [(-in-edges r (ensure-seq labels))])
      :else (fast-traversal2 -in-edges-prepared2 labels r)))
   ([f labels r]
-   (if-let [labels (ensure-seq labels)]
+   (if-let [labels (seq (ensure-seq labels))]
      (cond
        (vertex? r) [(f (-in-edges r labels))]
        (nil? r) nil
+       (not (next r)) (when-let [r (first r)] [(f (-in-edges r labels))])
        :else (fast-traversal2 f -in-edges-prepared2 labels r))
      (cond
        (vertex? r) [(f (-in-edges r))]
        (nil? r) nil
+       (not (next r)) (when-let [r (first r)] [(f (-in-edges r))])
        :else (map (comp f -in-edges) r)))))
 
 (defn in-e
@@ -487,21 +491,25 @@
    (cond
      (vertex? r) [(-out-edges r)]
      (nil? r) nil
+     (not (next r)) (when-let [r (first r)] [(-out-edges r)])
      :else (map -out-edges r)))
   ([labels r]
    (cond
      (vertex? r) [(-out-edges r (ensure-seq labels))]
+     (not (next r)) (when-let [r (first r)] [(-out-edges r (ensure-seq labels))])
      (nil? r) nil
      :else (fast-traversal2 -out-edges-prepared2 labels r)))
   ([f labels r]
-   (if-let [labels (ensure-seq labels)]
+   (if-let [labels (seq (ensure-seq labels))]
      (cond
        (vertex? r) [(f (-out-edges r labels))]
        (nil? r) nil
+       (not (next r)) (when-let [r (first r)] [(f (-out-edges r labels))])
        :else (fast-traversal2 f -out-edges-prepared2 labels r))
      (cond
        (vertex? r) [(f (-out-edges r))]
        (nil? r) nil
+       (not (next r)) (when-let [r (first r)] [(f (-out-edges r))])
        :else (map (comp f -out-edges) r)))))
 
 (defn out-e
@@ -533,6 +541,11 @@
      (let [labels (ensure-seq labels)]
        [(concat (-in-edges r labels) (-out-edges r labels))])
      (nil? r) nil
+     (not (next r))
+     (let [labels (ensure-seq labels)
+           r (first r)]
+       (when r
+         [(concat (-in-edges r labels) (-out-edges r labels))]))
      :else
      (fast-traversal2
        (fn [g labels]
@@ -544,10 +557,12 @@
        labels
        r)))
   ([f labels r]
-   (if-let [labels (ensure-seq labels)]
+   (if-let [labels (seq (ensure-seq labels))]
      (cond
        (vertex? r) [(f (concat (-in-edges r labels) (-out-edges r labels)))]
        (nil? r) nil
+       (not (next r)) (when-let [r (first r)]
+                        [(f (concat (-in-edges r labels) (-out-edges r labels)))])
        :else
        (fast-traversal2 f
          (fn [g labels]
@@ -559,8 +574,10 @@
          labels
          r))
      (cond
-       (vertex? r) [(concat (f (-in-edges r)) (f (-out-edges r)))]
+       (vertex? r) [(f (concat (-in-edges r) (-out-edges r)))]
        (nil? r) nil
+       (not (next r)) (when-let [r (first r)]
+                        [(f (concat (-in-edges r) (-out-edges r)))])
        :else
        (map (fn [v] (f (concat (-in-edges v) (-out-edges v)))) r)))))
 
