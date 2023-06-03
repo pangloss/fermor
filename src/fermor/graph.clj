@@ -3,7 +3,7 @@
   (:require [fermor.protocols :refer :all]
             [pure-conditioning :refer [condition error default optional]]
             [clojure.pprint :refer [simple-dispatch]])
-  (:import (io.lacuna.bifurcan DirectedGraph DirectedAcyclicGraph IGraph IMap Map IEdge)
+  (:import (io.lacuna.bifurcan DirectedGraph DirectedAcyclicGraph IGraph IMap Map IEdge Set)
            (java.util.function BiFunction)
            (java.util Optional)
            (clojure.lang IMeta)))
@@ -12,6 +12,7 @@
 
 (declare ->LinearGraph ->ForkedGraph ->V ->E
   graph-equality -get-edge-document --in-edges --out-edges -documents
+  --in-edge-count --out-edge-count
   -edges -has-vertex-document? edge-graphs)
 
 (defn dag-edge
@@ -710,6 +711,18 @@
   (-in-edges [^V v labels]
     (--in-edges v labels))
 
+  VertexEdgeCount
+  ;; TODO specialize 4 edge types with combinations of vertex id and vertex obj for in and out. Eliminate extra wrappers.
+  (-out-edge-count [v]
+    (--out-edge-count v (labels (.graph v))))
+  (-out-edge-count [v labels]
+    (--out-edge-count v labels))
+
+  (-in-edge-count [^V v]
+    (--in-edge-count v (labels (.graph v))))
+  (-in-edge-count [^V v labels]
+    (--in-edge-count v labels))
+
   VertexEdgesPrepared
   (-out-edges-prepared [v labels]
     (--out-edges v labels))
@@ -767,6 +780,24 @@
                 (map #(->E label (->V (.graph v) % nil nil) v nil false nil)
                      (.in edge (.id v))))))
           labels))
+
+(defn- --out-edge-count [^V v labels]
+  (reduce (fn [n label]
+            (if-let [edge (edge-graph (.graph v) label)]
+              (if (edges-with-label? v label edge)
+                (+ n (.size ^Set (.out edge (.id v))))
+                n)
+              n))
+    0 labels))
+
+(defn- --in-edge-count [^V v labels]
+  (reduce (fn [n label]
+            (if-let [edge (edge-graph (.graph v) label)]
+              (if (edges-with-label? v label edge)
+                (+ n (.size ^Set (.in edge (.id v))))
+                n)
+              n))
+    0 labels))
 
 (defn print-edge* [^String as-out ^String as-in ^E e ^java.io.Writer w]
   (if *compact-edge-printing*

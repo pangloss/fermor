@@ -3,6 +3,7 @@
             [potemkin :refer [import-vars import-def]]
             [flatland.ordered.set :refer [ordered-set]]
             [fermor.protocols :as proto :refer [wrappable? Wrappable -out-edges -in-edges
+                                                -out-edge-count -in-edge-count
                                                 to-forked to-linear
                                                 traversed-forward -label -unwrap
                                                 -out-edges-prepared -in-edges-prepared
@@ -369,6 +370,21 @@
   "Edges pointing in to this vertex"
   ([v] (-in-edges v))
   ([v labels] (-in-edges v labels)))
+
+(defn out-edge-count
+  "Count edges pointing out of this vertex"
+  ([v] (-out-edge-count v))
+  ([v labels] (-out-edge-count v labels)))
+
+(defn in-edge-count
+  "Count edges pointing in to this vertex"
+  ([v] (-in-edge-count v))
+  ([v labels] (-in-edge-count v labels)))
+
+(defn both-edge-count
+  "Count edges on this vertex"
+  ([v] (+ (-out-edge-count v) (-in-edge-count v)))
+  ([v labels] (+ (-out-edge-count v labels) (-in-edge-count v labels))))
 
 ;; TraversalDirection methods
 

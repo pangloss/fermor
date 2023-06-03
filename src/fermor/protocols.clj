@@ -227,6 +227,14 @@
     "Return a lazy seq of edges in to the vertex. Labels is a collection of strings.
     "))
 
+(defprotocol VertexEdgeCount
+  (-out-edge-count [v] [v labels]
+    "Return number of edges out of the vertex. Labels is a collection of strings.
+    ")
+  (-in-edge-count [v] [v labels]
+    "Return number of edges in to the vertex. Labels is a collection of strings.
+    "))
+
 (defprotocol VertexEdgesPrepared
   "This specialization will be make more sense when/if I bring back abstract
   label support. More useful for neo4j, etc."
