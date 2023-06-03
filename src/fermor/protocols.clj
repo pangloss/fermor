@@ -1,5 +1,6 @@
 (ns fermor.protocols
-  (:require [clojure.pprint :refer [simple-dispatch]]))
+  (:require [clojure.pprint :refer [simple-dispatch]])
+  (:import [clojure.lang Murmur3]))
 
 (set! *warn-on-reflection* true)
 
@@ -39,8 +40,7 @@
   clojure.lang.IHashEq
   (hasheq [this] (if (zero? _hasheq)
                    (let [h (int (bit-xor 280812713 #_(hash 'fermor.protocols.KindId)
-                                  (+ (bit-or (hash :kind) (hash kind))
-                                    (bit-or (hash :id) (hash id)))))]
+                                  (Murmur3/hashUnordered {:kind kind :id id})))]
                      (set! _hasheq h)
                      h)
                    _hasheq))
