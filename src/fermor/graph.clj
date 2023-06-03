@@ -781,16 +781,30 @@
   (mapcat (fn [label]
             (when-let [edge (edge-graph (.graph v) label)]
               (when (edges-with-label? v label edge)
-                (map #(->E label v (->V (.graph v) % nil nil) nil true nil)
-                     (.out edge (.id v))))))
-          labels))
+                (let [edges (.out edge (.id ^V v))
+                      result (object-array (.size ^Set edges))]
+                  (loop [iter (.iterator ^Set edges)
+                         i 0]
+                    (if (.hasNext iter)
+                      (let [e (.next iter)]
+                        (aset result i (->E label v (->V (.graph v) e nil nil) nil true nil))
+                        (recur iter (unchecked-inc-int i)))
+                      result))))))
+    labels))
 
 (defn- --in-edges [^V v labels]
   (mapcat (fn [label]
             (when-let [edge (edge-graph (.graph v) label)]
               (when (edges-with-label? v label edge)
-                (map #(->E label (->V (.graph v) % nil nil) v nil false nil)
-                     (.in edge (.id v))))))
+                (let [edges (.in edge (.id ^V v))
+                      result (object-array (.size ^Set edges))]
+                  (loop [iter (.iterator ^Set edges)
+                         i 0]
+                    (if (.hasNext iter)
+                      (let [e (.next iter)]
+                        (aset result i (->E label (->V (.graph v) e nil nil) v nil false nil))
+                        (recur iter (unchecked-inc-int i)))
+                      result))))))
           labels))
 
 (defn- --out-edge-count [^V v labels]
