@@ -241,6 +241,10 @@
   (-out-edges-prepared [v labels])
   (-in-edges-prepared [v labels]))
 
+(defprotocol GraphEdgesPrepared
+  (-out-edges-prepared2 [g label])
+  (-in-edges-prepared2 [g label]))
+
 (defprotocol Edge)
 
 (defprotocol EdgeLabel

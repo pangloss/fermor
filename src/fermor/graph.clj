@@ -5,7 +5,7 @@
             [clojure.pprint :refer [simple-dispatch]])
   (:import (io.lacuna.bifurcan DirectedGraph DirectedAcyclicGraph IGraph IMap Map IEdge Set)
            (java.util.function BiFunction)
-           (java.util Optional)
+           (java.util Optional ArrayList Iterator)
            (clojure.lang IMeta)))
 
 (set! *warn-on-reflection* true)
@@ -13,6 +13,7 @@
 (declare ->LinearGraph ->ForkedGraph ->V ->E
   graph-equality -get-edge-document --in-edges --out-edges -documents
   --in-edge-count --out-edge-count
+  --out-edges-prepared2 --in-edges-prepared2
   -edges -has-vertex-document? edge-graphs)
 
 (defn dag-edge
@@ -174,6 +175,12 @@
   AddVertices
   (add-vertices [g id-document-pairs]
     (-add-vertices g id-document-pairs))
+
+  GraphEdgesPrepared
+  (-out-edges-prepared2 [g label]
+    (--out-edges-prepared2 g label))
+  (-in-edges-prepared2 [g label]
+    (--in-edges-prepared2 g label))
 
   RemoveEdges
   (remove-edges [g es]
@@ -427,6 +434,12 @@
           true nil)
         (catch IllegalArgumentException e
           nil))))
+
+  GraphEdgesPrepared
+  (-out-edges-prepared2 [g label]
+    (--out-edges-prepared2 g label))
+  (-in-edges-prepared2 [g label]
+    (--in-edges-prepared2 g label))
 
   clojure.lang.IMeta
   (meta [o] metadata)
@@ -751,7 +764,6 @@
 
 (defn edges-with-label?
   "Returns true if the given vertex has any edges with the given label."
-  ;; FIXME : is this correct in both directions?
   ([^V v label]
    (edges-with-label? v label (edge-graph (.graph v) label)))
   ([^V v label ^IGraph edge]
@@ -798,6 +810,34 @@
                 n)
               n))
     0 labels))
+
+(defn- --out-edges-prepared2 [g label]
+  (when-let [edge (edge-graph g label)]
+    (fn [v]
+      (when (edges-with-label? v label edge)
+        (let [edges (.out edge (.id ^V v))
+              result (object-array (.size ^Set edges))]
+          (loop [iter (.iterator ^Set edges)
+                 i 0]
+            (if (.hasNext iter)
+              (let [e (.next iter)]
+                (aset result i (->E label v (->V g e nil nil) nil true nil))
+                (recur iter (unchecked-inc-int i)))
+              result)))))))
+
+(defn- --in-edges-prepared2 [g label]
+  (when-let [edge (edge-graph g label)]
+    (fn [v]
+      (when (edges-with-label? v label edge)
+        (let [edges (.in edge (.id ^V v))
+              result (object-array (.size ^Set edges))]
+          (loop [iter (.iterator ^Set edges)
+                 i 0]
+            (if (.hasNext iter)
+              (let [e (.next iter)]
+                (aset result i (->E label (->V g e nil nil) v nil false nil))
+                (recur iter (unchecked-inc-int i)))
+              result)))))))
 
 (defn print-edge* [^String as-out ^String as-in ^E e ^java.io.Writer w]
   (if *compact-edge-printing*

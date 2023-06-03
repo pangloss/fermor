@@ -7,6 +7,7 @@
                                                 to-forked to-linear
                                                 traversed-forward -label -unwrap
                                                 -out-edges-prepared -in-edges-prepared
+                                                -out-edges-prepared2 -in-edges-prepared2
                                                 -transpose -has-vertex? -get-edge]]
             [fermor.descend :refer [*descend *descents extrude *no-result-interval*]]
             fermor.graph
@@ -410,18 +411,34 @@
   [e]
   (if (followed-forward? e) (in-vertex e) (out-vertex e)))
 
-(defn- fast-traversal
+(defn- fast-traversal2
   "Requires that all vertices are from the same graph to work."
-  ([traversal labels r]
+  ([->traversal labels r]
    (lazy-seq
-    (let [r (ensure-seq r)]
-      ;; (let [labels (-prepare-labels (route-graph r) labels)]
-      (map #(traversal % labels) r))))
-  ([f traversal labels r]
+     (let [r (ensure-seq r)]
+       (when (seq r)
+         (if (keyword? labels)
+           (if-let [get-edges (->traversal (get-graph (first r)) labels)]
+             (map get-edges r)
+             (map (constantly []) r))
+           (let [labels (ensure-seq labels)
+                 get-edges* (into []
+                              (keep #(->traversal (get-graph (first r)) %))
+                              labels)]
+             (map #(mapcat (fn [get-edges] (get-edges %)) get-edges*) r)))))))
+  ([f ->traversal labels r]
    (lazy-seq
-    (let [r (ensure-seq r)]
-      ;; (let [labels (-prepare-labels (route-graph r) labels)]
-      (map #(f (traversal % labels)) r)))))
+     (let [r (ensure-seq r)]
+       (when (seq r)
+         (if (keyword? labels)
+           (if-let [get-edges (->traversal (get-graph (first r)) labels)]
+             (map (comp f get-edges) r)
+             (map (constantly []) r))
+           (let [labels (ensure-seq labels)
+                 get-edges* (into []
+                              (keep #(->traversal (get-graph (first r)) %))
+                              labels)]
+             (map #(f (mapcat (fn [get-edges] (get-edges %)) get-edges*)) r))))))))
 
 (defn in-e*
   "Returns a lazy seq of lazy seqs of edges.
@@ -438,13 +455,13 @@
    (cond
      (vertex? r) [(-in-edges r (ensure-seq labels))]
      (nil? r) nil
-     :else (fast-traversal -in-edges-prepared (ensure-seq labels) r)))
+     :else (fast-traversal2 -in-edges-prepared2 labels r)))
   ([f labels r]
    (if-let [labels (ensure-seq labels)]
      (cond
        (vertex? r) [(f (-in-edges r labels))]
        (nil? r) nil
-       :else (fast-traversal f -in-edges-prepared labels r))
+       :else (fast-traversal2 f -in-edges-prepared2 labels r))
      (cond
        (vertex? r) [(f (-in-edges r))]
        (nil? r) nil
@@ -475,13 +492,13 @@
    (cond
      (vertex? r) [(-out-edges r (ensure-seq labels))]
      (nil? r) nil
-     :else (fast-traversal -out-edges-prepared (ensure-seq labels) r)))
+     :else (fast-traversal2 -out-edges-prepared2 labels r)))
   ([f labels r]
    (if-let [labels (ensure-seq labels)]
      (cond
        (vertex? r) [(f (-out-edges r labels))]
        (nil? r) nil
-       :else (fast-traversal f -out-edges-prepared labels r))
+       :else (fast-traversal2 f -out-edges-prepared2 labels r))
      (cond
        (vertex? r) [(f (-out-edges r))]
        (nil? r) nil
@@ -517,8 +534,14 @@
        [(concat (-in-edges r labels) (-out-edges r labels))])
      (nil? r) nil
      :else
-     (fast-traversal (fn [v l] (concat (-in-edges-prepared v l) (-out-edges-prepared v l)))
-       (ensure-seq labels)
+     (fast-traversal2
+       (fn [g labels]
+         (let [fi (-in-edges-prepared2 g labels)
+               fo (-out-edges-prepared2 g labels)]
+           (cond (and fi fo) (fn [v] (concat (fi v) (fo v)))
+                 fi fi
+                 fo fo)))
+       labels
        r)))
   ([f labels r]
    (if-let [labels (ensure-seq labels)]
@@ -526,8 +549,13 @@
        (vertex? r) [(f (concat (-in-edges r labels) (-out-edges r labels)))]
        (nil? r) nil
        :else
-       (fast-traversal f
-         (fn [v l] (concat (-in-edges-prepared v l) (-out-edges-prepared v l)))
+       (fast-traversal2 f
+         (fn [g labels]
+           (let [fi (-in-edges-prepared2 g labels)
+                 fo (-out-edges-prepared2 g labels)]
+             (cond (and fi fo) (fn [v] (concat (fi v) (fo v)))
+                   fi fi
+                   fo fo)))
          labels
          r))
      (cond
