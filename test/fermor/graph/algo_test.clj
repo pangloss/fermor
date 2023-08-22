@@ -125,7 +125,18 @@
 (deftest scc
   (is (= #{#{(g/v 'M) (g/v 'C) (g/v 'E)}
            #{(g/v 'D) (g/v 'G)}}
-        (strongly-connected-components cyclic-graph :to false))))
+        (strongly-connected-components* cyclic-graph :to false)))
+
+  (is (= #{#{(g/v 'M) (g/v 'C) (g/v 'E)}
+           #{(g/v 'D) (g/v 'G)}}
+        (strongly-connected-components cyclic-graph #(g/out :to %) false)))
+
+  (is (= #{#{(g/v 'M) (g/v 'C) (g/v 'E)}
+           #{(g/v 'D) (g/v 'G)}
+           #{(g/v 'X)}
+           #{(g/v 'B)}
+           #{(g/v 'T)}}
+        (strongly-connected-components cyclic-graph #(g/out :to %) true))))
 
 (deftest scsg
   (let [g (strongly-connected-subgraphs cyclic-graph :to false (range))]
