@@ -13,7 +13,7 @@
                                        :git/sha "61fa43215e0fce0fe83808b9e30c2bb4c170ffbd"}
 
            pangloss/transducers {:git/url "https://github.com/pangloss/transducers"
-                                 :git/sha "941ee5db73da855b21a380d096fa3d75d18e56de"}
+                                 :git/sha "b88c7cd48fc8cd2eb87b741533357c159e15a592"}
 
            com.phronemophobic/membrane {:mvn/version "0.9.31.8-beta"}
            com.phronemophobic.membrane/skialib-macosx-aarch64 {:mvn/version "0.9.31.0-beta"}
@@ -27,4 +27,5 @@
                       {fipp/fipp {:mvn/version "0.6.26"}
                        zprint/zprint {:mvn/version "1.2.7"}
                        com.github.jpmonettas/flow-storm-debugger
-                       {:git/sha "bda88e416aafd985659b68cfabd6d2fafb02f1f2"}}}}}
+                       {:git/sha "bda88e416aafd985659b68cfabd6d2fafb02f1f2"}
+                       pangloss/transducers {:local/root "../../dev/transducers"}}}}}

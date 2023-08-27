@@ -14,7 +14,7 @@
             [fermor.kind-graph :refer [->KGraph]]
             fermor.path
             [xn.transducers :as tx]
-            [fermor.core :refer [ensure-seq go-back go-on]])
+            [fermor.core :refer [ensure-seq]])
   (:import clojure.lang.IMeta
            (io.lacuna.bifurcan LinearList Lists)
            (fermor.protocols TraversalDirection KindId)))
@@ -46,7 +46,22 @@
   (fermor.path with-path path subpath no-path no-path! cyclic-path?
     path-vertices path-edges)
   ;; Kind Graph
-  (fermor.kind-graph V E-> E->in))
+  (fermor.kind-graph V E-> E->in)
+  (fermor.core
+    linear forked graph add-edge add-edges-from
+    add-edges-to get-edge add-edge! add-vertex add-vertex! remove-vertex
+    remove-vertex! add-vertices! add-edges! has-vertex? get-vertex! reload
+    set-document update-document update-document!
+    vertices edges unwrap
+    label out-edges in-edges out-edge-count in-edge-count both-edge-count
+    followed-forward? followed-reverse? go-back go-on
+    transpose subseq-route rsubseq-route)
+  (xn.transducers
+    counted merged
+    cond-branch distinct-by lasts-by append
+    lookahead neg-lookahead branch grouped-by group-count
+    sorted-group-count group-by-count sorted-group-by-count
+    distinct-by sorted sorted-by section-map))
 
 (defn fast-trav
   "Steps to traverse a node's edges:
@@ -162,106 +177,42 @@
 (def documents
   (map get-document))
 
+(defn has-property [k v]
+  (filter (fn [e] (= v (get (get-document e) k)))))
 
-;; TODO: move to transducers lib
-(defn lookahead
-  "Uses a nested transducer as the lookahead body"
+(defn make-pairs
+  ([f] (map (fn [v] [v (f v)])))
+  ([f0 f1] (map (fn [v] [(f0 v) (f1 v)]))))
+
+(defn section
   ([xform]
-   (fn [rf]
-     (let [look (xform (fn ([] nil) ([_] nil) ([_ item] (reduced true))))]
-       (fn
-         ([] (rf))
-         ([result] (rf result))
-         ([result item]
-          (if (look nil item)
-            (rf result item)
-            result))))))
-  ([{:keys [min max]} xform]
-   (fn [rf]
-     (let [finds (volatile! 0)
-           look (xform (fn
-                         ([] nil)
-                         ([_] nil)
-                         ([_ item]
-                          ;; this gets called only when an item would be added to the collection
-                          (vswap! finds inc))))]
-       (fn
-         ([] (rf))
-         ([result] (rf result))
-         ([result item]
-          (vreset! finds 0)
-          (look nil item)
-          (if (<= min @finds max)
-            (rf result item)
-            result)))))))
+   (tx/section xform))
+  ([f xform]
+   ;; NOTE: the original did mapcat on the result of f, but it's much more
+   ;; flexible to use map and allow the user to add cat if needed.
+   (comp
+     (tx/section xform)
+     (map f))))
 
-;; TODO: move to transducers lib
-(defn neg-lookahead
-  "Ensure that the function does NOT produce a collection of at least one item.
+(defn context [f xform]
+  (comp
+    (tx/section (branch
+                  (map identity)
+                  (tx/section xform)))
+    (map (fn [[v section]] (f v section)))))
 
-   Use the arity 2 version to specify that there must NOT be at least min
-   and/or at most max items in the route. If min or max is nil that limit will
-   not be enforced. The arity 2 version of neg-lookahead is not really recommended
-   as it is a little bit confusing."
+(defn sorted-section
   ([xform]
-   (fn [rf]
-     (let [look (xform (fn ([] nil) ([_] nil) ([_ item] (reduced true))))]
-       (fn
-         ([] (rf))
-         ([result] (rf result))
-         ([result item]
-          (if (look nil item)
-            result
-            (rf result item)))))))
-  ([{:keys [min max]} xform]
-   (fn [rf]
-     (let [finds (volatile! 0)
-           look (xform (fn
-                         ([] nil)
-                         ([_] nil)
-                         ([_ item]
-                          ;; this gets called only when an item would be added to the collection
-                          (vswap! finds inc))))]
-       (fn
-         ([] (rf))
-         ([result] (rf result))
-         ([result item]
-          (vreset! finds 0)
-          (look nil item)
-          (if (<= min @finds max)
-            result
-            (rf result item))))))))
+   (tx/section (comp xform sorted)))
+  ([sort-by-f xform]
+   (tx/section (comp xform (sorted-by sort-by-f)))))
 
-;; TODO: move to transducers lib
-(defn branch [xforms]
-  ;; the merge is built-in, unlike the lazy branch which is followed by a merge-exhaustive
-  ;; in this context, merge-round-robin makes more sense.
-  ;; so the branch doesn't actually ever produce separate streams, it just goes directly to the merged result.
-  ;; is it a set of streams per-vertex or a set of streams for all vertices?
-  ;; I think the latter.
-  (fn [rf]
-    (let [xforms (mapv
-                   #(% (fn
-                         ;; Don't pass the completing of the rf through because completing multiple times is invalid
-                         ;; and this transducer will do that after its child xforms have been completed.
-                         ([result] result)
-                         ([result item] (rf result item))))
-                   xforms)]
-      (fn
-        ([] (rf))
-        ([result]
-         (rf (reduce (fn [result xform] (xform result)) result xforms)))
-        ([result item]
-         (reduce (fn [result xform] (xform result item)) result xforms))))))
+#_
+(into []
+  (sorted-section (mapcat (constantly [10 3 2 1 9])))
+  (range 3))
 
-(comment
-  (into [] (branch [(mapcat str)
-                    (map str)
-                    (comp
-                      (mapcat #(range 10 %))
-                      (map #(- % 5))
-                      (mapcat range))])
-    [12 13]))
+;; (into [] (context vector (mapcat range)) (range 10))
 
 (defn with
   "Filters the route for elements where the result of calling the function children
@@ -311,3 +262,21 @@
         (mapcat range)
         (filter even?)))
     (range 50)))
+
+(defn degree
+  ([v]
+   (tx/counted (both-e) [v]))
+  ([v labels]
+   (tx/counted (both-e labels) [v])))
+
+(defn in-degree
+  ([v]
+   (count (-in-edges v)))
+  ([v labels]
+   (count (-in-edges v labels))))
+
+(defn out-degree
+  ([v]
+   (count (-out-edges v)))
+  ([v labels]
+   (count (-out-edges v labels))))
