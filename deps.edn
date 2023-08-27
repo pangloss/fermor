@@ -1,6 +1,5 @@
 {:paths   ["src"]
- :deps    {org.clojure/clojure          {:mvn/version "1.11.1"}
-           potemkin/potemkin            {:mvn/version "0.4.6"}
+ :deps    {potemkin/potemkin            {:mvn/version "0.4.6"}
            generateme/fastmath          {:mvn/version "2.2.1"
                                          :exclusions [com.github.haifengl/smile-mkl
                                                       org.slf4j/slf4j-api]}
@@ -13,6 +12,9 @@
            pangloss/pure-conditioning {:git/url "https://github.com/pangloss/pure-conditioning"
                                        :git/sha "61fa43215e0fce0fe83808b9e30c2bb4c170ffbd"}
 
+           pangloss/transducers {:git/url "https://github.com/pangloss/transducers"
+                                 :git/sha "941ee5db73da855b21a380d096fa3d75d18e56de"}
+
            com.phronemophobic/membrane {:mvn/version "0.9.31.8-beta"}
            com.phronemophobic.membrane/skialib-macosx-aarch64 {:mvn/version "0.9.31.0-beta"}
            com.phronemophobic.membrane/skialib-macosx-x86-64 {:mvn/version "0.9.31.0-beta"}
@@ -24,5 +26,5 @@
            :dev/dw   {:extra-deps
                       {fipp/fipp {:mvn/version "0.6.26"}
                        zprint/zprint {:mvn/version "1.2.7"}
-                       com.github.jpmonettas/flow-storm-dbg {:mvn/version "3.6.9"}
-                       com.github.jpmonettas/flow-storm-inst {:mvn/version "3.6.9"}}}}}
+                       com.github.jpmonettas/flow-storm-debugger
+                       {:git/sha "bda88e416aafd985659b68cfabd6d2fafb02f1f2"}}}}}

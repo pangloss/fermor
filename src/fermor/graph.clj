@@ -3,7 +3,8 @@
   (:require [fermor.protocols :refer :all]
             [pure-conditioning :refer [condition error default optional]]
             [clojure.pprint :refer [simple-dispatch]])
-  (:import (io.lacuna.bifurcan DirectedGraph DirectedAcyclicGraph IGraph IMap Map IEdge Set)
+  (:import (io.lacuna.bifurcan DirectedGraph DirectedAcyclicGraph IGraph IMap Map IEdge Set
+             LinearList Lists)
            (java.util.function BiFunction)
            (java.util Optional ArrayList Iterator)
            (clojure.lang IMeta)))
@@ -852,6 +853,28 @@
                 (aset result i (->E label (->V g e nil nil) v nil false nil))
                 (recur iter (unchecked-inc-int i)))
               result)))))))
+
+(defn out-edges-prepared3 [g label ^IGraph edge v]
+  (when (edges-with-label? v label edge)
+    (let [edges (.out edge (.id ^V v))
+          result (LinearList.)]
+      (loop [iter (.iterator ^Set edges)]
+        (if (.hasNext iter)
+          (let [e (.next iter)]
+            (.addLast result (->E label v (->V g e nil nil) nil true nil))
+            (recur iter))
+          result)))))
+
+(defn in-edges-prepared3 [g label ^IGraph edge v]
+  (when (edges-with-label? v label edge)
+    (let [edges (.in edge (.id ^V v))
+          result (LinearList.)]
+      (loop [iter (.iterator ^Set edges)]
+        (if (.hasNext iter)
+          (let [e (.next iter)]
+            (.addLast result (->E label (->V g e nil nil) v nil false nil))
+            (recur iter))
+          result)))))
 
 (defn print-edge* [^String as-out ^String as-in ^E e ^java.io.Writer w]
   (if *compact-edge-printing*
