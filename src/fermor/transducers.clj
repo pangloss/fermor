@@ -77,11 +77,12 @@
           work (fn [v] (@w v))]
       (vreset! w w-init)
       (fn
-        #_init ([] (rf))
-        #_complete ([result] (rf result))
-        #_reduce_item
+        ;; init
+        ([] (rf))
+        ;; complete
+        ([result] (rf result))
+        ;; reduce item
         ([result input]
-         ()
          (rf result (work input)))))))
 
 (def with-paths (map with-path))
@@ -90,6 +91,7 @@
 
 (defn in-e*
   ([] (map -in-edges))
+  ;; TODO: in-edges-prepared3 should be a protocol with all extensibility features tied in.
   ([labels] (fast-trav in-edges-prepared3 labels)))
 
 (defn in-e
@@ -106,7 +108,7 @@
 
 (defn cat-each [& xforms]
   (fn [rf]
-    (let [xfs (into [] (map #(% conj)) xforms)]
+    (let [xfs (mapv #(% conj) xforms)]
       (fn
         ([] (doseq [f xfs] (f)))
         ([result]
@@ -160,39 +162,152 @@
 (def documents
   (map get-document))
 
+
+;; TODO: move to transducers lib
 (defn lookahead
-  ([f]
-   (filter (comp seq f)))
-  ([{:keys [min max]} f]
-   (cond
-     (and min max)
-     (filter #(<= min (count (take (inc max) (f %))) max))
+  "Uses a nested transducer as the lookahead body"
+  ([xform]
+   (fn [rf]
+     (let [look (xform (fn ([] nil) ([_] nil) ([_ item] (reduced true))))]
+       (fn
+         ([] (rf))
+         ([result] (rf result))
+         ([result item]
+          (if (look nil item)
+            (rf result item)
+            result))))))
+  ([{:keys [min max]} xform]
+   (fn [rf]
+     (let [finds (volatile! 0)
+           look (xform (fn
+                         ([] nil)
+                         ([_] nil)
+                         ([_ item]
+                          ;; this gets called only when an item would be added to the collection
+                          (vswap! finds inc))))]
+       (fn
+         ([] (rf))
+         ([result] (rf result))
+         ([result item]
+          (vreset! finds 0)
+          (look nil item)
+          (if (<= min @finds max)
+            (rf result item)
+            result)))))))
 
-     min
-     (filter #(= min (count (take min (f %)))))
-
-     max
-     (filter #(<= (count (take (inc max) (f %))) max))
-
-     :else
-     (map identity))))
-
+;; TODO: move to transducers lib
 (defn neg-lookahead
   "Ensure that the function does NOT produce a collection of at least one item.
 
-   Use the arity 3 version to specify that there must NOT be at least min
+   Use the arity 2 version to specify that there must NOT be at least min
    and/or at most max items in the route. If min or max is nil that limit will
-   not be enforced. The arity 3 version of neg-lookahead is not really recommended
+   not be enforced. The arity 2 version of neg-lookahead is not really recommended
    as it is a little bit confusing."
-  ([f r]
-   (filter #(not (seq (f %)))))
-  ([{:keys [min max]} f r]
-   (cond
-     (and min max)
-     (filter #(not (<= min (count (take (inc max) (f %))) max)))
-     min
-     (filter #(not (= min (count (take min (f %))))))
-     max
-     (filter #(not (<= (count (take (inc max) (f %))) max)))
-     :else
-     (map identity))))
+  ([xform]
+   (fn [rf]
+     (let [look (xform (fn ([] nil) ([_] nil) ([_ item] (reduced true))))]
+       (fn
+         ([] (rf))
+         ([result] (rf result))
+         ([result item]
+          (if (look nil item)
+            result
+            (rf result item)))))))
+  ([{:keys [min max]} xform]
+   (fn [rf]
+     (let [finds (volatile! 0)
+           look (xform (fn
+                         ([] nil)
+                         ([_] nil)
+                         ([_ item]
+                          ;; this gets called only when an item would be added to the collection
+                          (vswap! finds inc))))]
+       (fn
+         ([] (rf))
+         ([result] (rf result))
+         ([result item]
+          (vreset! finds 0)
+          (look nil item)
+          (if (<= min @finds max)
+            result
+            (rf result item))))))))
+
+;; TODO: move to transducers lib
+(defn branch [xforms]
+  ;; the merge is built-in, unlike the lazy branch which is followed by a merge-exhaustive
+  ;; in this context, merge-round-robin makes more sense.
+  ;; so the branch doesn't actually ever produce separate streams, it just goes directly to the merged result.
+  ;; is it a set of streams per-vertex or a set of streams for all vertices?
+  ;; I think the latter.
+  (fn [rf]
+    (let [xforms (mapv
+                   #(% (fn
+                         ;; Don't pass the completing of the rf through because completing multiple times is invalid
+                         ;; and this transducer will do that after its child xforms have been completed.
+                         ([result] result)
+                         ([result item] (rf result item))))
+                   xforms)]
+      (fn
+        ([] (rf))
+        ([result]
+         (rf (reduce (fn [result xform] (xform result)) result xforms)))
+        ([result item]
+         (reduce (fn [result xform] (xform result item)) result xforms))))))
+
+(comment
+  (into [] (branch [(mapcat str)
+                    (map str)
+                    (comp
+                      (mapcat #(range 10 %))
+                      (map #(- % 5))
+                      (mapcat range))])
+    [12 13]))
+
+(defn with
+  "Filters the route for elements where the result of calling the function children
+   (fn [e]) are equal to v. If v is a set, then check that the result of
+   calling children is in the set."
+  [children v]
+  (if (set? v)
+    (filter (fn [e] (v (children e))))
+    (filter (fn [e] (= v (children e))))))
+
+(defn is
+  "Filter for items in the route equal to v."
+  {:see-also ["isn't"]}
+  [v]
+  (filter #(= v %)))
+
+(defn isn't
+  "Filter for items in the route not equal to v."
+  {:see-also ["is"]}
+  [v]
+  (filter #(not= v %)))
+
+(defn one-of
+  "Filter for items in the route equal to one of the items in vs."
+  [vs]
+  (filter (if (set? vs) vs (set vs))))
+
+(defn none-of
+  "Filter for items in the route equal to one of the items in vs."
+  [vs]
+  (remove (if (set? vs) vs (set vs))))
+
+
+(comment
+  (into [] (neg-lookahead (is 'x)) [1 2 'x 3])
+  (into [] (lookahead (is 'x)) [1 2 'x 3])
+
+  (into []
+    (lookahead {:min 10 :max 20}
+      (comp
+        (mapcat range)
+        (filter even?)))
+    (range 50))
+  (into []
+    (neg-lookahead {:min 10 :max 20}
+      (comp
+        (mapcat range)
+        (filter even?)))
+    (range 50)))
