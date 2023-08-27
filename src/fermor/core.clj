@@ -433,7 +433,7 @@
          (if (keyword? labels)
            (if-let [get-edges (->traversal (get-graph (first r)) labels)]
              (map (comp f get-edges) r)
-             (map (constantly []) r))
+             (map (constantly (f [])) r))
            (let [labels (ensure-seq labels)
                  get-edges* (into []
                               (keep #(->traversal (get-graph (first r)) %))
