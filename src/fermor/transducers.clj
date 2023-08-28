@@ -123,19 +123,9 @@
   ([] (comp (out-e*) cat))
   ([labels] (comp (out-e* labels) cat)))
 
-(defn cat-each [& xforms]
-  (fn [rf]
-    (let [xfs (mapv #(% conj) xforms)]
-      (fn
-        ([] (doseq [f xfs] (f)))
-        ([result]
-         (rf result))
-        ([result input]
-         (rf result (reduce (fn [v xf] (xf v input)) [] xfs)))))))
-
 (defn both-e*
   ([] (map (fn [v] (concat (-in-edges v) (-out-edges v)))))
-  ([labels] (cat-each (in-e* labels) (out-e* labels))))
+  ([labels] (branch (in-e* labels) (out-e* labels))))
 
 (defn both-e
   ([] (comp (both-e*) cat))
