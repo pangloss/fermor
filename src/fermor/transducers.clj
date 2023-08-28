@@ -83,7 +83,9 @@
                               (loop [ls labels egs edge-graphs
                                      r (LinearList.)]
                                 (if (seq ls)
-                                  (Lists/concat r (get-edges g (first ls) (first egs) vertex))
+                                  (if-let [edges (get-edges g (first ls) (first egs) vertex)]
+                                    (Lists/concat r edges)
+                                    r)
                                   (.forked r))))]
                      ;; replace this fn with the initialized worker
                      (vreset! w w')
@@ -153,20 +155,28 @@
   (map #(mapv f %)))
 
 (defn in*
-  ([] (comp in-e* (mapmap out-vertex)))
+  ([] (comp (in-e*) (mapmap out-vertex)))
   ([labels] (comp (in-e* labels) (mapmap out-vertex))))
 
 (defn in
-  ([] (comp in-e* out-v))
+  ([] (comp (in-e) out-v))
   ([labels] (comp (in-e labels) out-v)))
 
 (defn out*
-  ([] (comp out-e* (mapmap in-vertex)))
+  ([] (comp (out-e*) (mapmap in-vertex)))
   ([labels] (comp (out-e* labels) (mapmap in-vertex))))
 
 (defn out
-  ([] (comp out-e* in-v))
+  ([] (comp (out-e) in-v))
   ([labels] (comp (out-e labels) in-v)))
+
+(defn both*
+  ([] (comp (both-e*) (mapmap go-on)))
+  ([labels] (comp (both-e* labels) (mapmap go-on))))
+
+(defn both
+  ([] (comp (both-e) other-v))
+  ([labels] (comp (both-e labels) other-v)))
 
 (defn in-sorted [labels sort-by-f]
   (comp (in* labels) (map #(sort-by sort-by-f %)) cat))
@@ -176,6 +186,9 @@
 
 (def documents
   (map get-document))
+
+(def element-ids
+  (map element-id))
 
 (defn has-property [k v]
   (filter (fn [e] (= v (get (get-document e) k)))))
