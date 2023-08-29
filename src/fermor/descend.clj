@@ -60,23 +60,23 @@
          #(Cons. e nil)
 
          [false true true] ; :loop
-         (let [more #(Concat. (*descend (when path (conj path e)) control f results nri (inc recur-depth))
-                              (*descend path control f more nri (inc recur-depth)))]
-           (if (= nri (mod recur-depth (inc nri)))
+         (let [more #(Concat. (*descend (when path (conj path e)) control f results nri (unchecked-inc recur-depth))
+                              (*descend path control f more nri (unchecked-inc recur-depth)))]
+           (if (= nri (mod recur-depth (unchecked-inc nri)))
              #(Cons. (NoResult. path recur-depth) more)
              more))
 
          [false true false] ; :chain
-         (if (= nri (mod recur-depth (inc nri)))
+         (if (= nri (mod recur-depth (unchecked-inc nri)))
            #(Cons. (NoResult. path recur-depth)
-                   (*descend (when path (conj path e)) control f results nri (inc recur-depth)))
-           (recur (when path (conj path e)) control f results nri (inc recur-depth)))
+                   (*descend (when path (conj path e)) control f results nri (unchecked-inc recur-depth)))
+           (recur (when path (conj path e)) control f results nri (unchecked-inc recur-depth)))
 
          [false false true] ; (:ignore false nil)
-         (if (= nri (mod recur-depth (inc nri)))
+         (if (= nri (mod recur-depth (unchecked-inc nri)))
            #(Cons. (NoResult. path recur-depth)
-                   (*descend path control f more nri (inc recur-depth)))
-           (recur path control f more nri (inc recur-depth)))
+                   (*descend path control f more nri (unchecked-inc recur-depth)))
+           (recur path control f more nri (unchecked-inc recur-depth)))
 
          [false false false]; :cut
          nil)))))
@@ -113,23 +113,23 @@
          #(Cons. e-path nil)
 
          [false true true] ; :loop
-         (let [more #(Concat. (*descents e-path control f results nri (inc recur-depth))
-                              (*descents path control f more nri (inc recur-depth)))]
-           (if (= nri (mod recur-depth (inc nri)))
+         (let [more #(Concat. (*descents e-path control f results nri (unchecked-inc recur-depth))
+                              (*descents path control f more nri (unchecked-inc recur-depth)))]
+           (if (= nri (mod recur-depth (unchecked-inc nri)))
              #(Cons. (NoResult. path recur-depth) more)
              more))
 
          [false true false] ; :chain
-         (if (= nri (mod recur-depth (inc nri)))
+         (if (= nri (mod recur-depth (unchecked-inc nri)))
            #(Cons. (NoResult. path recur-depth)
-                   (*descents e-path control f results nri (inc recur-depth)))
-           (recur e-path control f results nri (inc recur-depth)))
+                   (*descents e-path control f results nri (unchecked-inc recur-depth)))
+           (recur e-path control f results nri (unchecked-inc recur-depth)))
 
          [false false true] ; (:ignore false nil)
-         (if (= nri (mod recur-depth (inc nri)))
+         (if (= nri (mod recur-depth (unchecked-inc nri)))
            #(Cons. (NoResult. path recur-depth)
-                   (*descents path control f more nri (inc recur-depth)))
-           (recur path control f more nri (inc recur-depth)))
+                   (*descents path control f more nri (unchecked-inc recur-depth)))
+           (recur path control f more nri (unchecked-inc recur-depth)))
 
          [false false false] ; :cut
          nil)))))
