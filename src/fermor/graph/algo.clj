@@ -85,8 +85,9 @@
     (if x
       (if (pre x)
         (recur stack set-of-components i L pre vertices)
+        ;; FIXME: instead of a pile of args and returns here, use a state object with mutable primitive members
         (let [[stack set-of-components i L pre] (scc get-successors include-singletons? stack set-of-components i L pre x)]
-          (recur stack set-of-components i L pre vertices)))
+          (recur stack set-of-components (long i) L pre vertices)))
       set-of-components)))
 
 (defn shortest-path
