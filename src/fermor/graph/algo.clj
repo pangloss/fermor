@@ -21,8 +21,8 @@
     (applyAsDouble ^double [this arg]
       ^double (f arg))))
 
-(defn strongly-connected-components
-  "Returns a set of SCCs. Each SCC is itself a set of vertex ids.."
+(defn strongly-connected-components*
+  "Returns a set of SCCs."
   [graph label include-singletons?]
   (let [g (edge-graph graph label)]
     (into #{}
@@ -30,6 +30,64 @@
         (map (fn [set] (map #(get-vertex graph %) set)))
         (map set))
       (Graphs/stronglyConnectedComponents g include-singletons?))))
+
+(defn- scc [get-successors include-singletons? stack set-of-components i L pre x]
+  (loop [pre (assoc pre x i)
+         L (assoc L x i)
+         i (inc i)
+         stack (conj stack x)
+         set-of-components set-of-components
+         [y & successors] (get-successors x)]
+    (if y
+      (cond
+        (not (pre y)) ;; x -> y is a tree arc
+        (let [[stack set-of-components i L pre] (scc get-successors include-singletons? stack set-of-components i L pre y)]
+          (if (< (L y 0) (L x 0))
+            (recur pre (assoc L x (L y 0)) i stack set-of-components successors)
+            (recur pre L i stack set-of-components successors)))
+        (< (pre x) (pre y 0)) ;; do nothing
+        (recur pre L i stack set-of-components successors)
+        ;; x -> y is a back or cross arc
+        (and (< (pre y 0) (L x 0)) (some #{y} stack))
+        (recur pre (assoc L x (pre y 0)) i stack set-of-components successors)
+        :else
+        (recur pre L i stack set-of-components successors))
+      (if (= (L x 0) (pre x 0))
+        (loop [C #{}
+               stack stack]
+          (let [z (peek stack)
+                C (conj C z)
+                stack (pop stack)]
+            (if (= z x)
+              (let [set-of-components (if (or include-singletons? (not= 1 (count C)))
+                                        (conj set-of-components C)
+                                        set-of-components)]
+                [stack set-of-components i L pre])
+              (recur C stack))))
+        [stack set-of-components i L pre]))))
+
+(defn strongly-connected-components
+  "Returns a set of SCCs for the given collection of vertices and their successors.
+
+  - vertices may be a list of vertices (unordered) or a graph. If a graph is
+    given, all vertices in the graph will be used.
+  - get-successors is a function that returns some immediate successor vertices.
+
+  Returns a set of sets of vertices. Each of the sets of vertices is a strongly
+  connected group."
+  [vertices get-successors include-singletons?]
+  (loop [stack []
+         set-of-components #{}
+         i 1
+         L {}
+         pre {}
+         [x & vertices] (if (g/graph? vertices) (g/all-vertices vertices) vertices)]
+    (if x
+      (if (pre x)
+        (recur stack set-of-components i L pre vertices)
+        (let [[stack set-of-components i L pre] (scc get-successors include-singletons? stack set-of-components i L pre x)]
+          (recur stack set-of-components i L pre vertices)))
+      set-of-components)))
 
 (defn shortest-path
   "Return the shortest path from the start vertex to an accepted path.
