@@ -1556,6 +1556,11 @@
                   xs seen)))]
      (step coll #{}))))
 
+(defn detect
+  "Find the first item that matches the given predicate."
+  [f coll]
+  (some (fn [x] (when (f x) x)) coll))
+
 (defn subgraph
   "Build a graph of only the edges in the paths of the route. You must call
   with-path on elements that are fed into the part of the route that you want to
