@@ -763,7 +763,7 @@
              (lazy-seq
                (cons (->> v
                           get-siblings
-                          (filter #(not= v %)))
+                          (filter #(not (= v %))))
                      (sibling-seq vs))))]
      (sibling-seq r)))
   ([to-parent from-parent r]
@@ -1269,7 +1269,7 @@
   "Filter for items in the route not equal to v."
   {:see-also ["is"]}
   [v r]
-  (filter #(not= v %) (ensure-seq r)))
+  (filter #(not (= v %)) (ensure-seq r)))
 
 (defn one-of
   "Filter for items in the route equal to one of the items in vs."
@@ -1302,7 +1302,7 @@
   "Remove items matching the KindId or id predicate."
   [id-pred r]
   (if (or (id? id-pred) (keyword? id-pred))
-    (filter #(not= id-pred (element-id %)) r)
+    (filter #(not (= id-pred (element-id %))) r)
     (remove (comp id-pred element-id) r)))
 
 (defn with-set

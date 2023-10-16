@@ -236,7 +236,7 @@
   "Filter for items in the route not equal to v."
   {:see-also ["is"]}
   [v]
-  (filter #(not= v %)))
+  (filter #(not (= v %))))
 
 (defn one-of
   "Filter for items in the route equal to one of the items in vs."

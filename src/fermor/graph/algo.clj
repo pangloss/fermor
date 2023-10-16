@@ -59,7 +59,7 @@
                 C (conj C z)
                 stack (pop stack)]
             (if (= z x)
-              (let [set-of-components (if (or include-singletons? (not= 1 (count C)))
+              (let [set-of-components (if (or include-singletons? (not (= 1 (count C))))
                                         (conj set-of-components C)
                                         set-of-components)]
                 [stack set-of-components i L pre])
