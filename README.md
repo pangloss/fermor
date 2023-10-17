@@ -105,7 +105,7 @@ graphs to be defined flexibly and easily. Both approaches may be intermixed.
 For example, the following graph has 8 edges labelled `:to`, which I use in my
 graph algos test. 
 
-[simple graph](https://eli.thegreenplace.net/images/2015/dgraph1.png)
+<img src="https://eli.thegreenplace.net/images/2015/dgraph1.png" />
 
 ``` clojure
 (def simple-graph
