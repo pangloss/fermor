@@ -13,7 +13,7 @@
                                        :git/sha "61fa43215e0fce0fe83808b9e30c2bb4c170ffbd"}
 
            pangloss/transducers {:git/url "https://github.com/pangloss/transducers"
-                                 :git/sha "08ea05da3893b439fd3b1f961ad1616ac95030c2"}
+                                 :git/sha "64a02cf63e17cda86d80f39a4e2df8715a2604c6"}
 
            com.phronemophobic/membrane {:mvn/version "0.9.31.8-beta"}
            com.phronemophobic.membrane/skialib-macosx-aarch64 {:mvn/version "0.9.31.0-beta"}
