@@ -225,6 +225,33 @@ Or do a negative lookahead to say what we don't want (like the core `remove` fun
        (neg-lookahead large-cities)))
 ```
 
+#### Recursive traversal
+
+If the cities have rail connections defined, we can use those to find all available train destinations.
+
+``` clojure
+(defn outbound-trains [city-nodes]
+  (out :train/city->city city-nodes))
+
+(defn inbound-trains [city-nodes]
+  (in :train/city->city city-nodes))
+```
+
+By using `all`, we can recursively query each city the train arrives at to find
+the available destinations. Cycles are detected and eliminated, but all paths to
+each destination will be found, meaning that if the train  network is well
+connected, some destinations may be included many times in the results. To
+counter that a simple strategy is to add `distinct`.
+
+``` clojure
+(defn train-destinations [city-nodes]
+  (->> city-nodes (all outbound-trains) distinct)
+```
+
+There are many variations on `all`, including `deepest`, `all-cycles`, `all-paths`, `search`, and several others.
+
+All of those functions are built using the `descend` graph traversal power tool which may be used to easily implement 
+sophisticated custom graph traversals. 
 
 #### More complex traversal and filtering examples
 
@@ -233,7 +260,7 @@ For more complex examples, please see the [gremlin examples](/test/fermor/gremli
 sophisticated examples present in the documentation of those projects
 and translated them to use Fermor.
 
-### Graph algos
+## Graph algos
 
 I have used this project extensively for the back end of a Sea of Nodes-style
 optimizing compiler. For that work  I've needed several graph algorithms, which
@@ -249,3 +276,9 @@ They include `strongly-connected-components`, `shortest-path`, `strongly-connect
 Most of those algos are implemented in a flexible way allowing you to define the
 `predecessor` and `successor` traversals (as needed), enabling the algos to be run even in
 complex labeled graphs.
+
+## Pattern matching
+
+My [Pattern](https://github.com/pangloss/pattern) library can be extended to create powerful graph matching. I have used that extensively 
+in my internal projects, but highly customized to the projects' specific domain requirements. I would be interested in working 
+with someone to develop a set of matchers to include in this project.
