@@ -433,7 +433,7 @@
          (if (keyword? labels)
            (if-let [get-edges (->traversal (get-graph (first r)) labels)]
              (map (comp f get-edges) r)
-             (map (constantly []) r))
+             (map (constantly (f [])) r))
            (let [labels (ensure-seq labels)
                  get-edges* (into []
                               (keep #(->traversal (get-graph (first r)) %))
@@ -763,7 +763,7 @@
              (lazy-seq
                (cons (->> v
                           get-siblings
-                          (filter #(not= v %)))
+                          (filter #(not (= v %))))
                      (sibling-seq vs))))]
      (sibling-seq r)))
   ([to-parent from-parent r]
@@ -1269,7 +1269,7 @@
   "Filter for items in the route not equal to v."
   {:see-also ["is"]}
   [v r]
-  (filter #(not= v %) (ensure-seq r)))
+  (filter #(not (= v %)) (ensure-seq r)))
 
 (defn one-of
   "Filter for items in the route equal to one of the items in vs."
@@ -1302,7 +1302,7 @@
   "Remove items matching the KindId or id predicate."
   [id-pred r]
   (if (or (id? id-pred) (keyword? id-pred))
-    (filter #(not= id-pred (element-id %)) r)
+    (filter #(not (= id-pred (element-id %))) r)
     (remove (comp id-pred element-id) r)))
 
 (defn with-set
@@ -1555,6 +1555,11 @@
                           (cons f (step (rest s) (conj seen val)))))))
                   xs seen)))]
      (step coll #{}))))
+
+(defn detect
+  "Find the first item that matches the given predicate."
+  [f coll]
+  (some (fn [x] (when (f x) x)) coll))
 
 (defn subgraph
   "Build a graph of only the edges in the paths of the route. You must call

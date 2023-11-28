@@ -59,7 +59,7 @@
                 C (conj C z)
                 stack (pop stack)]
             (if (= z x)
-              (let [set-of-components (if (or include-singletons? (not= 1 (count C)))
+              (let [set-of-components (if (or include-singletons? (not (= 1 (count C))))
                                         (conj set-of-components C)
                                         set-of-components)]
                 [stack set-of-components i L pre])
@@ -85,8 +85,9 @@
     (if x
       (if (pre x)
         (recur stack set-of-components i L pre vertices)
+        ;; FIXME: instead of a pile of args and returns here, use a state object with mutable primitive members
         (let [[stack set-of-components i L pre] (scc get-successors include-singletons? stack set-of-components i L pre x)]
-          (recur stack set-of-components i L pre vertices)))
+          (recur stack set-of-components (long i) L pre vertices)))
       set-of-components)))
 
 (defn shortest-path

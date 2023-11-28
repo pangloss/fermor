@@ -3,7 +3,8 @@
   (:require [fermor.protocols :refer :all]
             [pure-conditioning :refer [condition error default optional]]
             [clojure.pprint :refer [simple-dispatch]])
-  (:import (io.lacuna.bifurcan DirectedGraph DirectedAcyclicGraph IGraph IMap Map IEdge Set)
+  (:import (io.lacuna.bifurcan DirectedGraph DirectedAcyclicGraph IGraph IMap Map IEdge Set
+             LinearList Lists)
            (java.util.function BiFunction)
            (java.util Optional ArrayList Iterator)
            (clojure.lang IMeta)))
@@ -217,15 +218,8 @@
   GetEdge
   (-get-edge [g label from-id to-id]
     (when-let [edge (._getEdgeGraph g label)]
-      (try
-        (do
-          ;; The only way to test for edge existence seems to be to call .edge and see if it raises.
-          ;; FIXME: try to find a better way to do this.
-          (.edge ^IGraph edge from-id to-id)
-          ;; Don't cache the document in a mutable graph.
-          (->E label (->V g from-id nil nil) (->V g to-id nil nil) nil true nil))
-        (catch IllegalArgumentException e
-          nil))))
+      (when (.edge ^IGraph edge from-id to-id nil)
+        (->E label (->V g from-id nil nil) (->V g to-id nil nil) nil true nil))))
 
   AllVertices
   (all-vertices [g]
@@ -425,15 +419,10 @@
   GetEdge
   (-get-edge [g label from-id to-id]
     (when-let [edge (._getEdgeGraph g label)]
-      (try
+      (when-let [e (.edge ^IGraph edge from-id to-id nil)]
         (->E label (->V g from-id nil nil) (->V g to-id nil nil)
-          ;; NOTE: .edge is to fetch the edge document, but if there is no edge
-          ;; document it will also raise an exception. If it's possible, it
-          ;; would be better if I could actually check for the edge existence.
-          (Optional/ofNullable (.edge ^IGraph edge from-id to-id))
-          true nil)
-        (catch IllegalArgumentException e
-          nil))))
+          (Optional/ofNullable e)
+          true nil))))
 
   GraphEdgesPrepared
   (-out-edges-prepared2 [g label]
@@ -652,14 +641,10 @@
     (let [g (get-graph (.out_v e))
           edges (.get (-edges g) (.label e))]
       (when (.isPresent edges)
-        (try
-          (let [edges ^IGraph (.get edges)
-                edge (.edge edges
-                       (element-id (.out_v e))
-                       (element-id (.in_v e)))]
-            edge)
-          (catch IllegalArgumentException e
-            ;; thrown if the edge no longer exists in the graph.
+        (let [edges ^IGraph (.get edges)]
+          (.edge edges
+            (element-id (.out_v e))
+            (element-id (.in_v e))
             nil))))))
 
 (defn labels
@@ -852,6 +837,28 @@
                 (aset result i (->E label (->V g e nil nil) v nil false nil))
                 (recur iter (unchecked-inc-int i)))
               result)))))))
+
+(defn out-edges-prepared3 [g label ^IGraph edge v]
+  (when (edges-with-label? v label edge)
+    (let [edges (.out edge (.id ^V v))
+          result (LinearList.)]
+      (loop [iter (.iterator ^Set edges)]
+        (if (.hasNext iter)
+          (let [e (.next iter)]
+            (.addLast result (->E label v (->V g e nil nil) nil true nil))
+            (recur iter))
+          result)))))
+
+(defn in-edges-prepared3 [g label ^IGraph edge v]
+  (when (edges-with-label? v label edge)
+    (let [edges (.in edge (.id ^V v))
+          result (LinearList.)]
+      (loop [iter (.iterator ^Set edges)]
+        (if (.hasNext iter)
+          (let [e (.next iter)]
+            (.addLast result (->E label (->V g e nil nil) v nil false nil))
+            (recur iter))
+          result)))))
 
 (defn print-edge* [^String as-out ^String as-in ^E e ^java.io.Writer w]
   (if *compact-edge-printing*
