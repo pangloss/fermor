@@ -218,15 +218,8 @@
   GetEdge
   (-get-edge [g label from-id to-id]
     (when-let [edge (._getEdgeGraph g label)]
-      (try
-        (do
-          ;; The only way to test for edge existence seems to be to call .edge and see if it raises.
-          ;; FIXME: try to find a better way to do this.
-          (.edge ^IGraph edge from-id to-id)
-          ;; Don't cache the document in a mutable graph.
-          (->E label (->V g from-id nil nil) (->V g to-id nil nil) nil true nil))
-        (catch IllegalArgumentException e
-          nil))))
+      (when (.edge ^IGraph edge from-id to-id nil)
+        (->E label (->V g from-id nil nil) (->V g to-id nil nil) nil true nil))))
 
   AllVertices
   (all-vertices [g]
@@ -426,15 +419,10 @@
   GetEdge
   (-get-edge [g label from-id to-id]
     (when-let [edge (._getEdgeGraph g label)]
-      (try
+      (when-let [e (.edge ^IGraph edge from-id to-id nil)]
         (->E label (->V g from-id nil nil) (->V g to-id nil nil)
-          ;; NOTE: .edge is to fetch the edge document, but if there is no edge
-          ;; document it will also raise an exception. If it's possible, it
-          ;; would be better if I could actually check for the edge existence.
-          (Optional/ofNullable (.edge ^IGraph edge from-id to-id))
-          true nil)
-        (catch IllegalArgumentException e
-          nil))))
+          (Optional/ofNullable e)
+          true nil))))
 
   GraphEdgesPrepared
   (-out-edges-prepared2 [g label]
@@ -653,14 +641,10 @@
     (let [g (get-graph (.out_v e))
           edges (.get (-edges g) (.label e))]
       (when (.isPresent edges)
-        (try
-          (let [edges ^IGraph (.get edges)
-                edge (.edge edges
-                       (element-id (.out_v e))
-                       (element-id (.in_v e)))]
-            edge)
-          (catch IllegalArgumentException e
-            ;; thrown if the edge no longer exists in the graph.
+        (let [edges ^IGraph (.get edges)]
+          (.edge edges
+            (element-id (.out_v e))
+            (element-id (.in_v e))
             nil))))))
 
 (defn labels
