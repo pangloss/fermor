@@ -18,6 +18,8 @@
   (equals [a b] (and (instance? KVertex b) (= element (.element ^KVertex b))))
   (hashCode [e] (.hashCode element))
 
+  Vertex
+
   Element
   (element-id ^KindId [v] (element-id element))
   (get-graph [v] (get-graph element))
