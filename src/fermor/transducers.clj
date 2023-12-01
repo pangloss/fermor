@@ -13,7 +13,7 @@
              :refer [out-edges-prepared3 in-edges-prepared3]]
             [fermor.kind-graph :refer [->KGraph]]
             fermor.path
-            [xn.transducers :as tx]
+            [pangloss.transducers :as tx]
             [fermor.core :refer [ensure-seq]])
   (:import clojure.lang.IMeta
            (io.lacuna.bifurcan LinearList Lists)
@@ -57,7 +57,7 @@
     followed-forward? followed-reverse? go-back go-on
     transpose subseq-route rsubseq-route
     emit-and-continue emit emit-and-chain emit-and-cut continue chain ignore cut)
-  (xn.transducers
+  (pangloss.transducers
     counted merged
     cond-branch distinct-by lasts-by append
     lookahead neg-lookahead branch grouped-by group-count
@@ -305,6 +305,11 @@
 ;; This seems to have a roughly 3x performance penalty compared with the lazy
 ;; seq version in rough initial testing: 50M descents in 12s vs 4s. This may
 ;; change/invert as the work to get children gets heavier
+
+(defn unwrapping-path [xform]
+  ;; TODO: not quite sure what this should do...
+  nil)
+
 
 (defn descend
   "A power-tool for recursively traversing the graph. See also: descents, all, deepest

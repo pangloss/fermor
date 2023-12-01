@@ -1,5 +1,5 @@
 {:paths   ["src"]
- :deps    {potemkin/potemkin            {:mvn/version "0.4.6"}
+ :deps    {potemkin/potemkin            {:mvn/version "0.4.7"}
            generateme/fastmath          {:mvn/version "2.2.1"
                                          :exclusions [com.github.haifengl/smile-mkl
                                                       org.slf4j/slf4j-api]}
@@ -10,7 +10,7 @@
                                                    :git/tag "1.0.0"
                                                    :git/sha "0e8a06f"}
            pangloss/pure-conditioning {:git/url "https://github.com/pangloss/pure-conditioning"
-                                       :git/sha "61fa43215e0fce0fe83808b9e30c2bb4c170ffbd"}
+                                       :git/sha "2d84722845c9a3835fb50f6144049a530ac93686"}
 
            pangloss/transducers {:git/url "https://github.com/pangloss/transducers"
                                  :git/sha "64a02cf63e17cda86d80f39a4e2df8715a2604c6"}
@@ -25,8 +25,8 @@
            :dev      {:extra-paths ["dev"]}
            :dev/dw   {:extra-deps
                       {fipp/fipp {:mvn/version "0.6.26"}
-                       zprint/zprint {:mvn/version "1.2.7"}
+                       zprint/zprint {:mvn/version "1.2.8"}
                        com.github.jpmonettas/flow-storm-debugger
                        {:git/url "https://github.com/jpmonettas/flow-storm-debugger"
-                        :git/sha "a2c5f209e9e9ded17bbf259f57414cc73a94c8c2"}
+                        :git/sha "63a713e094ada5fe9bddd2d0a0cd6f39d091d4a2"}
                        pangloss/transducers {:local/root "../../dev/transducers"}}}}}
