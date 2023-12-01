@@ -706,9 +706,9 @@
   (-out-edges [v labels]
     (--out-edges v labels))
 
-  (-in-edges [^V v]
+  (-in-edges [v]
     (--in-edges v (labels (.graph v))))
-  (-in-edges [^V v labels]
+  (-in-edges [v labels]
     (--in-edges v labels))
 
   VertexEdgeCount
@@ -718,15 +718,15 @@
   (-out-edge-count [v labels]
     (--out-edge-count v labels))
 
-  (-in-edge-count [^V v]
+  (-in-edge-count [v]
     (--in-edge-count v (labels (.graph v))))
-  (-in-edge-count [^V v labels]
+  (-in-edge-count [v labels]
     (--in-edge-count v labels))
 
   VertexEdgesPrepared
   (-out-edges-prepared [v labels]
     (--out-edges v labels))
-  (-in-edges-prepared [^V v labels]
+  (-in-edges-prepared [v labels]
     (--in-edges v labels))
 
   Element
@@ -751,10 +751,10 @@
 
 (defn edges-with-label?
   "Returns true if the given vertex has any edges with the given label."
-  ([^V v label]
-   (edges-with-label? v label (edge-graph (.graph v) label)))
-  ([^V v label ^IGraph edge]
-   (.isPresent (.indexOf edge (.id v)))))
+  ([v label]
+   (edges-with-label? v label (edge-graph (get-graph v) label)))
+  ([v label ^IGraph edge]
+   (.isPresent (.indexOf edge (element-id v)))))
 
 (defn vertices-with-edge
   "Return all vertices that have an edge with the given label."
@@ -764,59 +764,61 @@
       (map #(->V graph % nil nil))
       (.vertices edge))))
 
-(defn- --out-edges [^V v labels]
+(defn- --out-edges [v labels]
   (mapcat (fn [label]
-            (when-let [edge (edge-graph (.graph v) label)]
+            (when-let [edge (edge-graph (get-graph v) label)]
               (when (edges-with-label? v label edge)
-                (let [edges (.out edge (.id ^V v))
+                (let [edges (.out edge (element-id v))
                       result (object-array (.size ^Set edges))]
                   (loop [iter (.iterator ^Set edges)
                          i 0]
                     (if (.hasNext iter)
                       (let [e (.next iter)]
-                        (aset result i (->E label v (->V (.graph v) e nil nil) nil true nil))
+                        (aset result i (->E label v (->V (get-graph v) e nil nil) nil true nil))
                         (recur iter (unchecked-inc-int i)))
                       result))))))
     labels))
 
-(defn- --in-edges [^V v labels]
+(defn- --in-edges [v labels]
   (mapcat (fn [label]
-            (when-let [edge (edge-graph (.graph v) label)]
+            (when-let [edge (edge-graph (get-graph v) label)]
               (when (edges-with-label? v label edge)
-                (let [edges (.in edge (.id ^V v))
+                (let [edges (.in edge (element-id v))
                       result (object-array (.size ^Set edges))]
                   (loop [iter (.iterator ^Set edges)
                          i 0]
                     (if (.hasNext iter)
                       (let [e (.next iter)]
-                        (aset result i (->E label (->V (.graph v) e nil nil) v nil false nil))
+                        (aset result i (->E label (->V (get-graph v) e nil nil) v nil false nil))
                         (recur iter (unchecked-inc-int i)))
                       result))))))
           labels))
 
-(defn- --out-edge-count [^V v labels]
+(defn- --out-edge-count [v labels]
   (reduce (fn [n label]
-            (if-let [edge (edge-graph (.graph v) label)]
+            (if-let [edge (edge-graph (get-graph v) label)]
               (if (edges-with-label? v label edge)
-                (+ n (.size ^Set (.out edge (.id v))))
+                (+ n (.size ^Set (.out edge (element-id v))))
                 n)
               n))
     0 labels))
 
-(defn- --in-edge-count [^V v labels]
+(defn- --in-edge-count [v labels]
   (reduce (fn [n label]
-            (if-let [edge (edge-graph (.graph v) label)]
+            (if-let [edge (edge-graph (get-graph v) label)]
               (if (edges-with-label? v label edge)
-                (+ n (.size ^Set (.in edge (.id v))))
+                (+ n (.size ^Set (.in edge (element-id v))))
                 n)
               n))
     0 labels))
 
 (defn- --out-edges-prepared2 [g label]
+  ;; FIXME: this does not wrap edges with the expected wrapper, causing vertices
+  ;; from KindGraph or LoomGraph to produce unwrapped edge elements.
   (when-let [edge (edge-graph g label)]
     (fn [v]
       (when (edges-with-label? v label edge)
-        (let [edges (.out edge (.id ^V v))
+        (let [edges (.out edge (element-id v))
               result (object-array (.size ^Set edges))]
           (loop [iter (.iterator ^Set edges)
                  i 0]
@@ -830,7 +832,7 @@
   (when-let [edge (edge-graph g label)]
     (fn [v]
       (when (edges-with-label? v label edge)
-        (let [edges (.in edge (.id ^V v))
+        (let [edges (.in edge (element-id v))
               result (object-array (.size ^Set edges))]
           (loop [iter (.iterator ^Set edges)
                  i 0]
@@ -842,7 +844,7 @@
 
 (defn out-edges-prepared3 [g label ^IGraph edge v]
   (when (edges-with-label? v label edge)
-    (let [edges (.out edge (.id ^V v))
+    (let [edges (.out edge (element-id v))
           result (LinearList.)]
       (loop [iter (.iterator ^Set edges)]
         (if (.hasNext iter)
@@ -853,7 +855,7 @@
 
 (defn in-edges-prepared3 [g label ^IGraph edge v]
   (when (edges-with-label? v label edge)
-    (let [edges (.in edge (.id ^V v))
+    (let [edges (.in edge (element-id v))
           result (LinearList.)]
       (loop [iter (.iterator ^Set edges)]
         (if (.hasNext iter)
@@ -904,7 +906,7 @@
   (if (linear? e)
     (.write w "(-v ")
     (.write w "(v "))
-  (print-method (.id ^V e) w)
+  (print-method (element-id e) w)
   (when-not *compact-vertex-printing*
     (when-let [p (get-document e)]
       (.write w " ")
