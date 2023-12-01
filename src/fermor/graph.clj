@@ -218,8 +218,9 @@
   GetEdge
   (-get-edge [g label from-id to-id]
     (when-let [edge (._getEdgeGraph g label)]
-      (when (.edge ^IGraph edge from-id to-id nil)
-        (->E label (->V g from-id nil nil) (->V g to-id nil nil) nil true nil))))
+      (let [e (.edge ^IGraph edge from-id to-id ::not-found)]
+        (when-not (= ::not-found e)
+          (->E label (->V g from-id nil nil) (->V g to-id nil nil) nil true nil)))))
 
   AllVertices
   (all-vertices [g]
@@ -419,10 +420,11 @@
   GetEdge
   (-get-edge [g label from-id to-id]
     (when-let [edge (._getEdgeGraph g label)]
-      (when-let [e (.edge ^IGraph edge from-id to-id nil)]
-        (->E label (->V g from-id nil nil) (->V g to-id nil nil)
-          (Optional/ofNullable e)
-          true nil))))
+      (let [e (.edge ^IGraph edge from-id to-id ::not-found)]
+        (when-not (= ::not-found e)
+          (->E label (->V g from-id nil nil) (->V g to-id nil nil)
+            (Optional/ofNullable e)
+            true nil)))))
 
   GraphEdgesPrepared
   (-out-edges-prepared2 [g label]
